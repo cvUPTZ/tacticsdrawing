@@ -38,6 +38,8 @@ export interface Annotation {
   updatedAt: string;
   zoneShape?: ZoneShape;
   targetPlayerId?: string; // For pressing - links to player annotation
+  scale?: number; // For resizable zones
+  rotation?: number; // For rotatable zones (radians)
 }
 
 export interface Calibration {

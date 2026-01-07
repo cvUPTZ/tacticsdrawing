@@ -7,8 +7,12 @@ interface BottomBarProps {
   onTogglePlay: () => void;
   onSeek: (time: number) => void;
   onStepFrame: (direction: 'forward' | 'backward') => void;
+  onSkip: (seconds: number) => void;
   onSetPlaybackRate: (rate: number) => void;
+  onSetVolume: (volume: number) => void;
   onToggleMute: () => void;
+  onToggleFullscreen?: () => void;
+  isFullscreen?: boolean;
   formatTimecode: (seconds: number) => string;
 }
 
@@ -17,8 +21,12 @@ export function BottomBar({
   onTogglePlay,
   onSeek,
   onStepFrame,
+  onSkip,
   onSetPlaybackRate,
+  onSetVolume,
   onToggleMute,
+  onToggleFullscreen,
+  isFullscreen = false,
   formatTimecode,
 }: BottomBarProps) {
   return (
@@ -28,8 +36,12 @@ export function BottomBar({
         videoState={videoState}
         onTogglePlay={onTogglePlay}
         onStepFrame={onStepFrame}
+        onSkip={onSkip}
         onSetPlaybackRate={onSetPlaybackRate}
+        onSetVolume={onSetVolume}
         onToggleMute={onToggleMute}
+        onToggleFullscreen={onToggleFullscreen}
+        isFullscreen={isFullscreen}
       />
 
       {/* Timeline */}

@@ -243,23 +243,50 @@ export function ThreeCanvas({
     
     annotations.forEach(annotation => {
       if (!annotation.visible) return;
-      if (annotation.type !== 'player' && annotation.type !== 'spotlight') return;
-      if (!annotation.label) return;
-
-      const pos = new THREE.Vector3(annotation.position.x, 2, annotation.position.z);
-      const projected = pos.clone().project(camera);
       
-      const x = (projected.x * 0.5 + 0.5) * container.clientWidth;
-      const y = (-projected.y * 0.5 + 0.5) * container.clientHeight;
+      // Player and spotlight labels
+      if ((annotation.type === 'player' || annotation.type === 'spotlight') && annotation.label) {
+        const pos = new THREE.Vector3(annotation.position.x, 2, annotation.position.z);
+        const projected = pos.clone().project(camera);
+        
+        const x = (projected.x * 0.5 + 0.5) * container.clientWidth;
+        const y = (-projected.y * 0.5 + 0.5) * container.clientHeight;
+        
+        newLabels.push({
+          id: annotation.id,
+          text: annotation.label,
+          screenX: x,
+          screenY: y - 30,
+          color: annotation.color,
+          visible: projected.z < 1,
+        });
+      }
       
-      newLabels.push({
-        id: annotation.id,
-        text: annotation.label,
-        screenX: x,
-        screenY: y - 30, // Offset above marker
-        color: annotation.color,
-        visible: projected.z < 1,
-      });
+      // Distance measurement labels
+      if (annotation.type === 'distance' && annotation.endPosition) {
+        const midX = (annotation.position.x + annotation.endPosition.x) / 2;
+        const midZ = (annotation.position.z + annotation.endPosition.z) / 2;
+        
+        // Calculate real distance (pitch is 105m x 68m, scaled to 105 x 68 in Three.js)
+        const dx = annotation.endPosition.x - annotation.position.x;
+        const dz = annotation.endPosition.z - annotation.position.z;
+        const distanceMeters = Math.sqrt(dx * dx + dz * dz);
+        
+        const pos = new THREE.Vector3(midX, 1, midZ);
+        const projected = pos.clone().project(camera);
+        
+        const x = (projected.x * 0.5 + 0.5) * container.clientWidth;
+        const y = (-projected.y * 0.5 + 0.5) * container.clientHeight;
+        
+        newLabels.push({
+          id: `${annotation.id}-distance`,
+          text: `${distanceMeters.toFixed(1)}m`,
+          screenX: x,
+          screenY: y,
+          color: annotation.color,
+          visible: projected.z < 1,
+        });
+      }
     });
 
     setLabels(newLabels);
@@ -401,10 +428,18 @@ export function ThreeCanvas({
         group.add(arrowHead);
       }
 
-      // ZONE - Different shapes (circle, rectangle, triangle)
+      // ZONE - Different shapes (circle, rectangle, triangle) with scale and rotation
       if (annotation.type === 'zone') {
-        const radius = annotation.radius || 8;
+        const baseRadius = annotation.radius || 8;
+        const scale = annotation.scale || 1;
+        const rotation = annotation.rotation || 0;
+        const radius = baseRadius * scale;
         const zoneShape = annotation.zoneShape || 'circle';
+        
+        // Create a container group for rotation
+        const zoneGroup = new THREE.Group();
+        zoneGroup.position.set(annotation.position.x, 0, annotation.position.z);
+        zoneGroup.rotation.y = rotation;
         
         if (zoneShape === 'circle') {
           // Filled zone with gradient-like effect
@@ -417,8 +452,8 @@ export function ThreeCanvas({
           });
           const circle = new THREE.Mesh(circleGeometry, circleMaterial);
           circle.rotation.x = -Math.PI / 2;
-          circle.position.set(annotation.position.x, 0.02, annotation.position.z);
-          group.add(circle);
+          circle.position.y = 0.02;
+          zoneGroup.add(circle);
 
           // Darker inner area
           const innerGeometry = new THREE.CircleGeometry(radius * 0.6, 48);
@@ -430,8 +465,8 @@ export function ThreeCanvas({
           });
           const inner = new THREE.Mesh(innerGeometry, innerMaterial);
           inner.rotation.x = -Math.PI / 2;
-          inner.position.set(annotation.position.x, 0.025, annotation.position.z);
-          group.add(inner);
+          inner.position.y = 0.025;
+          zoneGroup.add(inner);
 
           // Edge ring
           const ringGeometry = new THREE.RingGeometry(radius - 0.2, radius, 64);
@@ -443,8 +478,8 @@ export function ThreeCanvas({
           });
           const ring = new THREE.Mesh(ringGeometry, ringMaterial);
           ring.rotation.x = -Math.PI / 2;
-          ring.position.set(annotation.position.x, 0.03, annotation.position.z);
-          group.add(ring);
+          ring.position.y = 0.03;
+          zoneGroup.add(ring);
         } else if (zoneShape === 'rectangle') {
           const rectWidth = radius * 2;
           const rectHeight = radius * 1.5;
@@ -458,8 +493,8 @@ export function ThreeCanvas({
           });
           const rect = new THREE.Mesh(rectGeometry, rectMaterial);
           rect.rotation.x = -Math.PI / 2;
-          rect.position.set(annotation.position.x, 0.02, annotation.position.z);
-          group.add(rect);
+          rect.position.y = 0.02;
+          zoneGroup.add(rect);
 
           // Border
           const borderPoints = [
@@ -472,8 +507,7 @@ export function ThreeCanvas({
           const borderGeometry = new THREE.BufferGeometry().setFromPoints(borderPoints);
           const borderMaterial = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8 });
           const border = new THREE.Line(borderGeometry, borderMaterial);
-          border.position.set(annotation.position.x, 0, annotation.position.z);
-          group.add(border);
+          zoneGroup.add(border);
         } else if (zoneShape === 'triangle') {
           const triShape = new THREE.Shape();
           triShape.moveTo(0, radius);
@@ -490,8 +524,8 @@ export function ThreeCanvas({
           });
           const tri = new THREE.Mesh(triGeometry, triMaterial);
           tri.rotation.x = -Math.PI / 2;
-          tri.position.set(annotation.position.x, 0.02, annotation.position.z);
-          group.add(tri);
+          tri.position.y = 0.02;
+          zoneGroup.add(tri);
 
           // Border
           const triPoints = [
@@ -503,9 +537,10 @@ export function ThreeCanvas({
           const triBorderGeometry = new THREE.BufferGeometry().setFromPoints(triPoints);
           const triBorderMaterial = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8 });
           const triBorder = new THREE.Line(triBorderGeometry, triBorderMaterial);
-          triBorder.position.set(annotation.position.x, 0, annotation.position.z);
-          group.add(triBorder);
+          zoneGroup.add(triBorder);
         }
+        
+        group.add(zoneGroup);
       }
 
       // FREEHAND / MOVEMENT PATH
