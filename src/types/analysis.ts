@@ -1,8 +1,31 @@
 // Core types for the video analysis platform
 
-export type AnnotationType = 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'offside' | 'pressing' | 'line' | 'marker' | 'curve' | 'shield' | 'distance';
+// Passing arrows pack: double_arrow, curved_dashed, through_ball, switch_play, cross
+// Defensive pack: press_trap, cover_shadow, compact_block, line_shift, marking
+// Set-piece pack: wall, run, screen, decoy, delivery_zone
+// Training pack: cone, gate, grid, ladder, target_zone
 
-export type ToolMode = 'select' | 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'pan' | 'offside' | 'pressing' | 'line' | 'marker' | 'curve' | 'shield' | 'distance';
+export type AnnotationType = 
+  | 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'offside' | 'pressing' | 'line' | 'marker' | 'curve' | 'shield' | 'distance'
+  // Passing arrows
+  | 'double_arrow' | 'curved_dashed' | 'through_ball' | 'switch_play' | 'cross'
+  // Defensive
+  | 'press_trap' | 'cover_shadow' | 'compact_block' | 'line_shift' | 'marking'
+  // Set-piece
+  | 'wall' | 'run' | 'screen' | 'decoy' | 'delivery_zone'
+  // Training
+  | 'cone' | 'gate' | 'grid' | 'ladder' | 'target_zone';
+
+export type ToolMode = 
+  | 'select' | 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'pan' | 'offside' | 'pressing' | 'line' | 'marker' | 'curve' | 'shield' | 'distance'
+  // Passing arrows
+  | 'double_arrow' | 'curved_dashed' | 'through_ball' | 'switch_play' | 'cross'
+  // Defensive
+  | 'press_trap' | 'cover_shadow' | 'compact_block' | 'line_shift' | 'marking'
+  // Set-piece
+  | 'wall' | 'run' | 'screen' | 'decoy' | 'delivery_zone'
+  // Training
+  | 'cone' | 'gate' | 'grid' | 'ladder' | 'target_zone';
 
 export type ZoneShape = 'circle' | 'rectangle' | 'triangle' | 'polygon';
 

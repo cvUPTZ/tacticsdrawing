@@ -271,6 +271,31 @@ export default function Index() {
   }, [loadVideo, currentProject, createProject, updateProject]);
 
   const handlePitchClick = useCallback((position: Vector3) => {
+    // Two-point tools (arrows, lines, etc.)
+    const twoPointTools: ToolMode[] = [
+      'arrow', 'line', 'offside', 'distance',
+      'double_arrow', 'curved_dashed', 'through_ball', 'switch_play', 'cross',
+      'line_shift', 'run', 'gate'
+    ];
+    
+    // Single-point zone-type tools
+    const zoneTools: ToolMode[] = [
+      'zone', 'delivery_zone', 'target_zone', 'compact_block', 'grid'
+    ];
+    
+    // Single-point marker-type tools
+    const markerTools: ToolMode[] = [
+      'marker', 'cone', 'decoy'
+    ];
+    
+    // Area/shield-type tools
+    const shieldTools: ToolMode[] = [
+      'shield', 'press_trap', 'cover_shadow', 'screen', 'wall', 'ladder'
+    ];
+    
+    // Multi-point path tools
+    const pathTools: ToolMode[] = ['freehand', 'curve', 'marking'];
+
     if (toolMode === 'player') {
       const label = playerCounter.toString();
       addAnnotation('player', position, { 
@@ -278,12 +303,12 @@ export default function Index() {
         timestampStart: videoState.currentTime,
       });
       setPlayerCounter(prev => prev + 1);
-    } else if (toolMode === 'arrow') {
+    } else if (twoPointTools.includes(toolMode)) {
       if (!arrowStartPosition) {
         setArrowStartPosition(position);
-        toast.info('Click to set pass end point', { duration: 2000 });
+        toast.info('Click to set end point', { duration: 2000 });
       } else {
-        const annotation = addAnnotation('arrow', arrowStartPosition, {
+        const annotation = addAnnotation(toolMode as any, arrowStartPosition, {
           endPosition: position,
           timestampStart: videoState.currentTime,
         });
@@ -292,7 +317,7 @@ export default function Index() {
         }
         setArrowStartPosition(null);
       }
-    } else if (toolMode === 'freehand') {
+    } else if (pathTools.includes(toolMode)) {
       if (!isDrawingFreehand) {
         setIsDrawingFreehand(true);
         setFreehandPoints([position]);
@@ -300,83 +325,34 @@ export default function Index() {
       } else {
         setFreehandPoints(prev => [...prev, position]);
       }
-    } else if (toolMode === 'zone') {
-      const newAnnotation = addAnnotation('zone', position, {
+    } else if (zoneTools.includes(toolMode)) {
+      const newAnnotation = addAnnotation(toolMode as any, position, {
         radius: 8,
         timestampStart: videoState.currentTime,
       });
       if (newAnnotation) {
         updateAnnotation(newAnnotation.id, { zoneShape });
       }
+    } else if (markerTools.includes(toolMode)) {
+      addAnnotation(toolMode as any, position, {
+        timestampStart: videoState.currentTime,
+      });
+    } else if (shieldTools.includes(toolMode)) {
+      addAnnotation(toolMode as any, position, {
+        timestampStart: videoState.currentTime,
+        radius: toolMode === 'wall' ? 10 : toolMode === 'ladder' ? 6 : 4,
+      });
     } else if (toolMode === 'spotlight') {
       const spotlightNumber = annotations.filter(a => a.type === 'spotlight').length + 1;
       addAnnotation('spotlight', position, {
         label: `Spotlight ${spotlightNumber}`,
         timestampStart: videoState.currentTime,
       });
-    } else if (toolMode === 'offside') {
-      if (!arrowStartPosition) {
-        setArrowStartPosition(position);
-        toast.info('Click to set offside line end point', { duration: 2000 });
-      } else {
-        addAnnotation('offside', arrowStartPosition, {
-          endPosition: position,
-          timestampStart: videoState.currentTime,
-        });
-        setArrowStartPosition(null);
-      }
     } else if (toolMode === 'pressing') {
       addAnnotation('pressing', position, {
         timestampStart: videoState.currentTime,
         radius: 5,
       });
-    } else if (toolMode === 'line') {
-      // Straight line tool
-      if (!arrowStartPosition) {
-        setArrowStartPosition(position);
-        toast.info('Click to set line end point', { duration: 2000 });
-      } else {
-        const annotation = addAnnotation('line', arrowStartPosition, {
-          endPosition: position,
-          timestampStart: videoState.currentTime,
-        });
-        if (annotation && isDashed) {
-          updateAnnotation(annotation.id, { metadata: { dashed: true } });
-        }
-        setArrowStartPosition(null);
-      }
-    } else if (toolMode === 'marker') {
-      // Simple marker/dot
-      addAnnotation('marker', position, {
-        timestampStart: videoState.currentTime,
-      });
-    } else if (toolMode === 'curve') {
-      // Curved line (uses freehand points but renders as smooth curve)
-      if (!isDrawingFreehand) {
-        setIsDrawingFreehand(true);
-        setFreehandPoints([position]);
-        toast.info('Click to add curve points. Press Escape to finish.', { duration: 3000 });
-      } else {
-        setFreehandPoints(prev => [...prev, position]);
-      }
-    } else if (toolMode === 'shield') {
-      // Defensive block shape
-      addAnnotation('shield', position, {
-        timestampStart: videoState.currentTime,
-        radius: 4,
-      });
-    } else if (toolMode === 'distance') {
-      // Distance measurement line
-      if (!arrowStartPosition) {
-        setArrowStartPosition(position);
-        toast.info('Click to set measurement end point', { duration: 2000 });
-      } else {
-        addAnnotation('distance', arrowStartPosition, {
-          endPosition: position,
-          timestampStart: videoState.currentTime,
-        });
-        setArrowStartPosition(null);
-      }
     } else if (toolMode === 'select') {
       // Multi-select players
       const playerAnnotations = annotations.filter(a => a.type === 'player');
