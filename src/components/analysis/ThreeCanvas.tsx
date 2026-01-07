@@ -2,6 +2,8 @@ import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { Annotation, CalibrationState, ToolMode, Vector3 } from '@/types/analysis';
 import { HeatmapType, HeatmapOverlay, getHeatmapColor } from './HeatmapOverlay';
+import { createSOTAPitch, PITCH_REFERENCE_POINTS } from './SOTAPitch';
+import { CalibrationPoint } from './PointCalibration';
 
 interface PitchScale {
   width: number;
@@ -19,6 +21,9 @@ interface ThreeCanvasProps {
   pitchScale?: PitchScale;
   gridOverlay?: GridOverlayType;
   heatmapType?: HeatmapType;
+  useSOTAPitch?: boolean;
+  calibrationPoints?: CalibrationPoint[];
+  activeCalibrationPointId?: string | null;
 }
 
 interface LabelData {
@@ -65,6 +70,9 @@ export function ThreeCanvas({
   pitchScale = { width: 1, height: 1 },
   gridOverlay = 'none',
   heatmapType = 'none',
+  useSOTAPitch = true,
+  calibrationPoints = [],
+  activeCalibrationPointId = null,
 }: ThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -74,6 +82,7 @@ export function ThreeCanvas({
   const pitchGroupRef = useRef<THREE.Group | null>(null);
   const gridGroupRef = useRef<THREE.Group | null>(null);
   const heatmapGroupRef = useRef<THREE.Group | null>(null);
+  const calibrationMarkersRef = useRef<THREE.Group | null>(null);
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const pitchPlaneRef = useRef<THREE.Mesh | null>(null);
   const animationTimeRef = useRef(0);
@@ -143,6 +152,19 @@ export function ThreeCanvas({
     scene.add(heatmapGroup);
     heatmapGroupRef.current = heatmapGroup;
 
+    // Calibration markers group
+    const calibrationMarkers = new THREE.Group();
+    scene.add(calibrationMarkers);
+    calibrationMarkersRef.current = calibrationMarkers;
+
+    // Add ambient and directional lighting for SOTA pitch
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(50, 100, 50);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+
     // Animation loop with label updates
     const animate = () => {
       requestAnimationFrame(animate);
@@ -203,218 +225,110 @@ export function ThreeCanvas({
     };
   }, []);
 
-  // Update pitch lines when scale changes - Full pitch with all markings
+  // Update pitch when scale changes - Use SOTA pitch or basic
   useEffect(() => {
     const pitchGroup = pitchGroupRef.current;
     if (!pitchGroup) return;
-    while (pitchGroup.children.length > 0) pitchGroup.remove(pitchGroup.children[0]);
-
-    const pw = 105 * pitchScale.width;
-    const ph = 68 * pitchScale.height;
-    const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
-    const matBright = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
-
-    // Pitch outline
-    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-pw/2, 0.01, -ph/2), new THREE.Vector3(pw/2, 0.01, -ph/2),
-      new THREE.Vector3(pw/2, 0.01, ph/2), new THREE.Vector3(-pw/2, 0.01, ph/2),
-      new THREE.Vector3(-pw/2, 0.01, -ph/2),
-    ]), matBright));
-
-    // Center line
-    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0.01, -ph/2), new THREE.Vector3(0, 0.01, ph/2),
-    ]), mat));
-
-    // Center circle (9.15m radius)
-    const centerCircleRadius = 9.15 * pitchScale.width;
-    const circle = new THREE.Mesh(
-      new THREE.RingGeometry(centerCircleRadius - 0.15, centerCircleRadius, 64),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, side: THREE.DoubleSide })
-    );
-    circle.rotation.x = -Math.PI / 2;
-    circle.position.y = 0.01;
-    pitchGroup.add(circle);
-
-    // Center spot
-    const centerSpot = new THREE.Mesh(
-      new THREE.CircleGeometry(0.3, 16),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
-    );
-    centerSpot.rotation.x = -Math.PI / 2;
-    centerSpot.position.y = 0.02;
-    pitchGroup.add(centerSpot);
-
-    // Penalty areas (16.5m x 40.3m)
-    const penaltyDepth = 16.5 * pitchScale.width;
-    const penaltyWidth = 40.3 * pitchScale.height;
-
-    // Left penalty area
-    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-pw/2, 0.01, -penaltyWidth/2),
-      new THREE.Vector3(-pw/2 + penaltyDepth, 0.01, -penaltyWidth/2),
-      new THREE.Vector3(-pw/2 + penaltyDepth, 0.01, penaltyWidth/2),
-      new THREE.Vector3(-pw/2, 0.01, penaltyWidth/2),
-    ]), mat));
-
-    // Right penalty area
-    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(pw/2, 0.01, -penaltyWidth/2),
-      new THREE.Vector3(pw/2 - penaltyDepth, 0.01, -penaltyWidth/2),
-      new THREE.Vector3(pw/2 - penaltyDepth, 0.01, penaltyWidth/2),
-      new THREE.Vector3(pw/2, 0.01, penaltyWidth/2),
-    ]), mat));
-
-    // Goal areas (6-yard box: 5.5m x 18.32m)
-    const goalAreaDepth = 5.5 * pitchScale.width;
-    const goalAreaWidth = 18.32 * pitchScale.height;
-
-    // Left goal area
-    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-pw/2, 0.01, -goalAreaWidth/2),
-      new THREE.Vector3(-pw/2 + goalAreaDepth, 0.01, -goalAreaWidth/2),
-      new THREE.Vector3(-pw/2 + goalAreaDepth, 0.01, goalAreaWidth/2),
-      new THREE.Vector3(-pw/2, 0.01, goalAreaWidth/2),
-    ]), mat));
-
-    // Right goal area
-    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(pw/2, 0.01, -goalAreaWidth/2),
-      new THREE.Vector3(pw/2 - goalAreaDepth, 0.01, -goalAreaWidth/2),
-      new THREE.Vector3(pw/2 - goalAreaDepth, 0.01, goalAreaWidth/2),
-      new THREE.Vector3(pw/2, 0.01, goalAreaWidth/2),
-    ]), mat));
-
-    // Penalty spots (11m from goal line)
-    const penaltySpotDist = 11 * pitchScale.width;
-    const leftPenaltySpot = new THREE.Mesh(
-      new THREE.CircleGeometry(0.25, 16),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
-    );
-    leftPenaltySpot.rotation.x = -Math.PI / 2;
-    leftPenaltySpot.position.set(-pw/2 + penaltySpotDist, 0.02, 0);
-    pitchGroup.add(leftPenaltySpot);
-
-    const rightPenaltySpot = new THREE.Mesh(
-      new THREE.CircleGeometry(0.25, 16),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
-    );
-    rightPenaltySpot.rotation.x = -Math.PI / 2;
-    rightPenaltySpot.position.set(pw/2 - penaltySpotDist, 0.02, 0);
-    pitchGroup.add(rightPenaltySpot);
-
-    // Penalty arcs (D)
-    const arcRadius = 9.15 * pitchScale.width;
-    const arcSegments = 32;
-    const arcAngle = Math.acos(penaltyDepth / arcRadius);
-
-    // Left penalty arc
-    const leftArcPoints: THREE.Vector3[] = [];
-    for (let i = 0; i <= arcSegments; i++) {
-      const angle = -arcAngle + (2 * arcAngle * i / arcSegments);
-      leftArcPoints.push(new THREE.Vector3(
-        -pw/2 + penaltySpotDist + Math.cos(angle) * arcRadius,
-        0.01,
-        Math.sin(angle) * arcRadius
-      ));
-    }
-    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(leftArcPoints), mat));
-
-    // Right penalty arc
-    const rightArcPoints: THREE.Vector3[] = [];
-    for (let i = 0; i <= arcSegments; i++) {
-      const angle = Math.PI - arcAngle + (2 * arcAngle * i / arcSegments);
-      rightArcPoints.push(new THREE.Vector3(
-        pw/2 - penaltySpotDist + Math.cos(angle) * arcRadius,
-        0.01,
-        Math.sin(angle) * arcRadius
-      ));
-    }
-    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rightArcPoints), mat));
-
-    // Corner arcs (1m radius)
-    const cornerRadius = 1 * Math.min(pitchScale.width, pitchScale.height);
-    const corners = [
-      { x: -pw/2, z: -ph/2, startAngle: 0 },
-      { x: pw/2, z: -ph/2, startAngle: Math.PI / 2 },
-      { x: pw/2, z: ph/2, startAngle: Math.PI },
-      { x: -pw/2, z: ph/2, startAngle: -Math.PI / 2 },
-    ];
-    corners.forEach(corner => {
-      const cornerPoints: THREE.Vector3[] = [];
-      for (let i = 0; i <= 16; i++) {
-        const angle = corner.startAngle + (Math.PI / 2 * i / 16);
-        cornerPoints.push(new THREE.Vector3(
-          corner.x + Math.cos(angle) * cornerRadius,
-          0.01,
-          corner.z + Math.sin(angle) * cornerRadius
-        ));
+    while (pitchGroup.children.length > 0) {
+      const child = pitchGroup.children[0];
+      pitchGroup.remove(child);
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        if (child.material instanceof THREE.Material) child.material.dispose();
       }
-      pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(cornerPoints), mat));
+    }
+
+    if (useSOTAPitch) {
+      // Use SOTA professional pitch
+      const sotaPitch = createSOTAPitch(pitchScale);
+      pitchGroup.add(sotaPitch);
+    } else {
+      // Basic pitch fallback
+      const pw = 105 * pitchScale.width;
+      const ph = 68 * pitchScale.height;
+      const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+      const matBright = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
+
+      // Pitch outline
+      pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-pw/2, 0.01, -ph/2), new THREE.Vector3(pw/2, 0.01, -ph/2),
+        new THREE.Vector3(pw/2, 0.01, ph/2), new THREE.Vector3(-pw/2, 0.01, ph/2),
+        new THREE.Vector3(-pw/2, 0.01, -ph/2),
+      ]), matBright));
+
+      // Center line
+      pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0.01, -ph/2), new THREE.Vector3(0, 0.01, ph/2),
+      ]), mat));
+
+      // Center circle
+      const centerCircleRadius = 9.15 * pitchScale.width;
+      const circle = new THREE.Mesh(
+        new THREE.RingGeometry(centerCircleRadius - 0.15, centerCircleRadius, 64),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, side: THREE.DoubleSide })
+      );
+      circle.rotation.x = -Math.PI / 2;
+      circle.position.y = 0.01;
+      pitchGroup.add(circle);
+    }
+  }, [pitchScale, useSOTAPitch]);
+
+  // Render calibration point markers on pitch
+  useEffect(() => {
+    const markersGroup = calibrationMarkersRef.current;
+    if (!markersGroup) return;
+    while (markersGroup.children.length > 0) {
+      const child = markersGroup.children[0];
+      markersGroup.remove(child);
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        if (child.material instanceof THREE.Material) child.material.dispose();
+      }
+    }
+
+    if (calibrationPoints.length === 0) return;
+
+    calibrationPoints.forEach(point => {
+      const isActive = point.id === activeCalibrationPointId;
+      const isSet = point.screenX !== undefined;
+      
+      // Marker ring
+      const ringGeometry = new THREE.RingGeometry(1.5, 2, 32);
+      const ringColor = isActive ? 0x00ff88 : isSet ? 0x00aaff : 0xffaa00;
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: ringColor,
+        transparent: true,
+        opacity: isActive ? 0.9 : 0.6,
+        side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(point.pitchX * pitchScale.width, 0.1, point.pitchZ * pitchScale.height);
+      markersGroup.add(ring);
+
+      // Center dot
+      const dotGeometry = new THREE.CircleGeometry(0.5, 16);
+      const dotMaterial = new THREE.MeshBasicMaterial({
+        color: ringColor,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+      });
+      const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+      dot.rotation.x = -Math.PI / 2;
+      dot.position.set(point.pitchX * pitchScale.width, 0.11, point.pitchZ * pitchScale.height);
+      markersGroup.add(dot);
+
+      // Vertical indicator pole for active point
+      if (isActive) {
+        const poleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 5, 8);
+        const poleMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.7 });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+        pole.position.set(point.pitchX * pitchScale.width, 2.5, point.pitchZ * pitchScale.height);
+        markersGroup.add(pole);
+      }
     });
-
-    // Goals (7.32m wide x 2.44m high)
-    const goalWidth = 7.32 * pitchScale.height;
-    const goalDepth = 2.44 * pitchScale.width;
-    const goalHeight = 2.44;
-    const goalMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
-
-    // Left goal posts
-    const leftGoal = new THREE.Group();
-    // Front posts
-    leftGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-pw/2, 0, -goalWidth/2),
-      new THREE.Vector3(-pw/2, goalHeight, -goalWidth/2),
-    ]), goalMat));
-    leftGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-pw/2, 0, goalWidth/2),
-      new THREE.Vector3(-pw/2, goalHeight, goalWidth/2),
-    ]), goalMat));
-    // Crossbar
-    leftGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-pw/2, goalHeight, -goalWidth/2),
-      new THREE.Vector3(-pw/2, goalHeight, goalWidth/2),
-    ]), goalMat));
-    // Back structure
-    leftGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-pw/2 - goalDepth, 0, -goalWidth/2),
-      new THREE.Vector3(-pw/2 - goalDepth, goalHeight * 0.8, -goalWidth/2),
-      new THREE.Vector3(-pw/2, goalHeight, -goalWidth/2),
-    ]), goalMat));
-    leftGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-pw/2 - goalDepth, 0, goalWidth/2),
-      new THREE.Vector3(-pw/2 - goalDepth, goalHeight * 0.8, goalWidth/2),
-      new THREE.Vector3(-pw/2, goalHeight, goalWidth/2),
-    ]), goalMat));
-    pitchGroup.add(leftGoal);
-
-    // Right goal posts
-    const rightGoal = new THREE.Group();
-    rightGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(pw/2, 0, -goalWidth/2),
-      new THREE.Vector3(pw/2, goalHeight, -goalWidth/2),
-    ]), goalMat));
-    rightGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(pw/2, 0, goalWidth/2),
-      new THREE.Vector3(pw/2, goalHeight, goalWidth/2),
-    ]), goalMat));
-    rightGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(pw/2, goalHeight, -goalWidth/2),
-      new THREE.Vector3(pw/2, goalHeight, goalWidth/2),
-    ]), goalMat));
-    rightGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(pw/2 + goalDepth, 0, -goalWidth/2),
-      new THREE.Vector3(pw/2 + goalDepth, goalHeight * 0.8, -goalWidth/2),
-      new THREE.Vector3(pw/2, goalHeight, -goalWidth/2),
-    ]), goalMat));
-    rightGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(pw/2 + goalDepth, 0, goalWidth/2),
-      new THREE.Vector3(pw/2 + goalDepth, goalHeight * 0.8, goalWidth/2),
-      new THREE.Vector3(pw/2, goalHeight, goalWidth/2),
-    ]), goalMat));
-    pitchGroup.add(rightGoal);
-
-  }, [pitchScale]);
+  }, [calibrationPoints, activeCalibrationPointId, pitchScale]);
 
   // Grid overlay effect
   useEffect(() => {

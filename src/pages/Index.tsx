@@ -13,6 +13,7 @@ import { TopBar } from '@/components/analysis/TopBar';
 import { BottomBar } from '@/components/analysis/BottomBar';
 import { ToolPanel } from '@/components/analysis/ToolPanel';
 import { CalibrationPanel, CornerCalibrationPoint } from '@/components/analysis/CalibrationPanel';
+import { CalibrationPoint } from '@/components/analysis/PointCalibration';
 import { AnnotationsList } from '@/components/analysis/AnnotationsList';
 import { ProjectsDialog } from '@/components/analysis/ProjectsDialog';
 import { HeatmapType } from '@/components/analysis/HeatmapOverlay';
