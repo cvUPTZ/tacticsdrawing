@@ -87,11 +87,12 @@ export function ThreeCanvas({
     const camera = new THREE.PerspectiveCamera(calibration.cameraFov, width / height, 0.1, 1000);
     cameraRef.current = camera;
 
-    // Renderer with enhanced settings
+    // Renderer with enhanced settings - preserveDrawingBuffer for export
     const renderer = new THREE.WebGLRenderer({ 
       antialias: true, 
       alpha: true,
       powerPreference: 'high-performance',
+      preserveDrawingBuffer: true, // Required for snapshot export
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -183,7 +184,7 @@ export function ThreeCanvas({
     };
   }, []);
 
-  // Update pitch lines when scale changes
+  // Update pitch lines when scale changes - Full pitch with all markings
   useEffect(() => {
     const pitchGroup = pitchGroupRef.current;
     if (!pitchGroup) return;
@@ -191,19 +192,209 @@ export function ThreeCanvas({
 
     const pw = 105 * pitchScale.width;
     const ph = 68 * pitchScale.height;
-    const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+    const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+    const matBright = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
 
+    // Pitch outline
     pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-pw/2, 0.01, -ph/2), new THREE.Vector3(pw/2, 0.01, -ph/2),
       new THREE.Vector3(pw/2, 0.01, ph/2), new THREE.Vector3(-pw/2, 0.01, ph/2),
       new THREE.Vector3(-pw/2, 0.01, -ph/2),
-    ]), mat));
+    ]), matBright));
+
+    // Center line
     pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0.01, -ph/2), new THREE.Vector3(0, 0.01, ph/2),
     ]), mat));
-    const circle = new THREE.Mesh(new THREE.RingGeometry(9, 9.1, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }));
-    circle.rotation.x = -Math.PI / 2; circle.position.y = 0.01;
+
+    // Center circle (9.15m radius)
+    const centerCircleRadius = 9.15 * pitchScale.width;
+    const circle = new THREE.Mesh(
+      new THREE.RingGeometry(centerCircleRadius - 0.15, centerCircleRadius, 64),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, side: THREE.DoubleSide })
+    );
+    circle.rotation.x = -Math.PI / 2;
+    circle.position.y = 0.01;
     pitchGroup.add(circle);
+
+    // Center spot
+    const centerSpot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.3, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+    );
+    centerSpot.rotation.x = -Math.PI / 2;
+    centerSpot.position.y = 0.02;
+    pitchGroup.add(centerSpot);
+
+    // Penalty areas (16.5m x 40.3m)
+    const penaltyDepth = 16.5 * pitchScale.width;
+    const penaltyWidth = 40.3 * pitchScale.height;
+
+    // Left penalty area
+    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-pw/2, 0.01, -penaltyWidth/2),
+      new THREE.Vector3(-pw/2 + penaltyDepth, 0.01, -penaltyWidth/2),
+      new THREE.Vector3(-pw/2 + penaltyDepth, 0.01, penaltyWidth/2),
+      new THREE.Vector3(-pw/2, 0.01, penaltyWidth/2),
+    ]), mat));
+
+    // Right penalty area
+    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(pw/2, 0.01, -penaltyWidth/2),
+      new THREE.Vector3(pw/2 - penaltyDepth, 0.01, -penaltyWidth/2),
+      new THREE.Vector3(pw/2 - penaltyDepth, 0.01, penaltyWidth/2),
+      new THREE.Vector3(pw/2, 0.01, penaltyWidth/2),
+    ]), mat));
+
+    // Goal areas (6-yard box: 5.5m x 18.32m)
+    const goalAreaDepth = 5.5 * pitchScale.width;
+    const goalAreaWidth = 18.32 * pitchScale.height;
+
+    // Left goal area
+    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-pw/2, 0.01, -goalAreaWidth/2),
+      new THREE.Vector3(-pw/2 + goalAreaDepth, 0.01, -goalAreaWidth/2),
+      new THREE.Vector3(-pw/2 + goalAreaDepth, 0.01, goalAreaWidth/2),
+      new THREE.Vector3(-pw/2, 0.01, goalAreaWidth/2),
+    ]), mat));
+
+    // Right goal area
+    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(pw/2, 0.01, -goalAreaWidth/2),
+      new THREE.Vector3(pw/2 - goalAreaDepth, 0.01, -goalAreaWidth/2),
+      new THREE.Vector3(pw/2 - goalAreaDepth, 0.01, goalAreaWidth/2),
+      new THREE.Vector3(pw/2, 0.01, goalAreaWidth/2),
+    ]), mat));
+
+    // Penalty spots (11m from goal line)
+    const penaltySpotDist = 11 * pitchScale.width;
+    const leftPenaltySpot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.25, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+    );
+    leftPenaltySpot.rotation.x = -Math.PI / 2;
+    leftPenaltySpot.position.set(-pw/2 + penaltySpotDist, 0.02, 0);
+    pitchGroup.add(leftPenaltySpot);
+
+    const rightPenaltySpot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.25, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+    );
+    rightPenaltySpot.rotation.x = -Math.PI / 2;
+    rightPenaltySpot.position.set(pw/2 - penaltySpotDist, 0.02, 0);
+    pitchGroup.add(rightPenaltySpot);
+
+    // Penalty arcs (D)
+    const arcRadius = 9.15 * pitchScale.width;
+    const arcSegments = 32;
+    const arcAngle = Math.acos(penaltyDepth / arcRadius);
+
+    // Left penalty arc
+    const leftArcPoints: THREE.Vector3[] = [];
+    for (let i = 0; i <= arcSegments; i++) {
+      const angle = -arcAngle + (2 * arcAngle * i / arcSegments);
+      leftArcPoints.push(new THREE.Vector3(
+        -pw/2 + penaltySpotDist + Math.cos(angle) * arcRadius,
+        0.01,
+        Math.sin(angle) * arcRadius
+      ));
+    }
+    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(leftArcPoints), mat));
+
+    // Right penalty arc
+    const rightArcPoints: THREE.Vector3[] = [];
+    for (let i = 0; i <= arcSegments; i++) {
+      const angle = Math.PI - arcAngle + (2 * arcAngle * i / arcSegments);
+      rightArcPoints.push(new THREE.Vector3(
+        pw/2 - penaltySpotDist + Math.cos(angle) * arcRadius,
+        0.01,
+        Math.sin(angle) * arcRadius
+      ));
+    }
+    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rightArcPoints), mat));
+
+    // Corner arcs (1m radius)
+    const cornerRadius = 1 * Math.min(pitchScale.width, pitchScale.height);
+    const corners = [
+      { x: -pw/2, z: -ph/2, startAngle: 0 },
+      { x: pw/2, z: -ph/2, startAngle: Math.PI / 2 },
+      { x: pw/2, z: ph/2, startAngle: Math.PI },
+      { x: -pw/2, z: ph/2, startAngle: -Math.PI / 2 },
+    ];
+    corners.forEach(corner => {
+      const cornerPoints: THREE.Vector3[] = [];
+      for (let i = 0; i <= 16; i++) {
+        const angle = corner.startAngle + (Math.PI / 2 * i / 16);
+        cornerPoints.push(new THREE.Vector3(
+          corner.x + Math.cos(angle) * cornerRadius,
+          0.01,
+          corner.z + Math.sin(angle) * cornerRadius
+        ));
+      }
+      pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(cornerPoints), mat));
+    });
+
+    // Goals (7.32m wide x 2.44m high)
+    const goalWidth = 7.32 * pitchScale.height;
+    const goalDepth = 2.44 * pitchScale.width;
+    const goalHeight = 2.44;
+    const goalMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+
+    // Left goal posts
+    const leftGoal = new THREE.Group();
+    // Front posts
+    leftGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-pw/2, 0, -goalWidth/2),
+      new THREE.Vector3(-pw/2, goalHeight, -goalWidth/2),
+    ]), goalMat));
+    leftGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-pw/2, 0, goalWidth/2),
+      new THREE.Vector3(-pw/2, goalHeight, goalWidth/2),
+    ]), goalMat));
+    // Crossbar
+    leftGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-pw/2, goalHeight, -goalWidth/2),
+      new THREE.Vector3(-pw/2, goalHeight, goalWidth/2),
+    ]), goalMat));
+    // Back structure
+    leftGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-pw/2 - goalDepth, 0, -goalWidth/2),
+      new THREE.Vector3(-pw/2 - goalDepth, goalHeight * 0.8, -goalWidth/2),
+      new THREE.Vector3(-pw/2, goalHeight, -goalWidth/2),
+    ]), goalMat));
+    leftGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-pw/2 - goalDepth, 0, goalWidth/2),
+      new THREE.Vector3(-pw/2 - goalDepth, goalHeight * 0.8, goalWidth/2),
+      new THREE.Vector3(-pw/2, goalHeight, goalWidth/2),
+    ]), goalMat));
+    pitchGroup.add(leftGoal);
+
+    // Right goal posts
+    const rightGoal = new THREE.Group();
+    rightGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(pw/2, 0, -goalWidth/2),
+      new THREE.Vector3(pw/2, goalHeight, -goalWidth/2),
+    ]), goalMat));
+    rightGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(pw/2, 0, goalWidth/2),
+      new THREE.Vector3(pw/2, goalHeight, goalWidth/2),
+    ]), goalMat));
+    rightGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(pw/2, goalHeight, -goalWidth/2),
+      new THREE.Vector3(pw/2, goalHeight, goalWidth/2),
+    ]), goalMat));
+    rightGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(pw/2 + goalDepth, 0, -goalWidth/2),
+      new THREE.Vector3(pw/2 + goalDepth, goalHeight * 0.8, -goalWidth/2),
+      new THREE.Vector3(pw/2, goalHeight, -goalWidth/2),
+    ]), goalMat));
+    rightGoal.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(pw/2 + goalDepth, 0, goalWidth/2),
+      new THREE.Vector3(pw/2 + goalDepth, goalHeight * 0.8, goalWidth/2),
+      new THREE.Vector3(pw/2, goalHeight, goalWidth/2),
+    ]), goalMat));
+    pitchGroup.add(rightGoal);
+
   }, [pitchScale]);
 
   // Update label positions from 3D to screen space
