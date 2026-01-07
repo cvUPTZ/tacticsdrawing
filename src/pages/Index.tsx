@@ -74,8 +74,10 @@ export default function Index() {
     videoSrc,
     togglePlay,
     seek,
+    skip,
     stepFrame,
     setPlaybackRate,
+    setVolume,
     toggleMute,
     loadVideo,
     formatTimecode,
@@ -172,6 +174,16 @@ export default function Index() {
           e.preventDefault();
           stepFrame('forward');
           break;
+        case 'KeyJ':
+          e.preventDefault();
+          skip(-10);
+          break;
+        case 'KeyL':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            skip(10);
+          }
+          break;
         case 'KeyM':
           toggleMute();
           break;
@@ -199,7 +211,9 @@ export default function Index() {
           setToolMode('freehand');
           break;
         case 'KeyZ':
-          setToolMode('zone');
+          if (!e.ctrlKey && !e.metaKey) {
+            setToolMode('zone');
+          }
           break;
         case 'KeyS':
           if (!e.ctrlKey && !e.metaKey) {
@@ -212,12 +226,23 @@ export default function Index() {
         case 'KeyH':
           setToolMode('pan');
           break;
+        case 'KeyI':
+          setToolMode('distance');
+          break;
+        case 'KeyC':
+          if (!e.ctrlKey && !e.metaKey) {
+            setToolMode('curve');
+          }
+          break;
+        case 'KeyB':
+          setToolMode('shield');
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, stepFrame, toggleMute, selectedAnnotationId, deleteAnnotation]);
+  }, [togglePlay, stepFrame, skip, toggleMute, selectedAnnotationId, deleteAnnotation]);
 
   const finalizeFreehand = useCallback(() => {
     if (isDrawingFreehand && freehandPoints.length > 1) {
@@ -510,6 +535,7 @@ export default function Index() {
             onSelect={selectAnnotation}
             onToggleVisibility={toggleAnnotationVisibility}
             onDelete={deleteAnnotation}
+            onUpdate={updateAnnotation}
           />
         </aside>
 
@@ -589,7 +615,9 @@ export default function Index() {
         onTogglePlay={togglePlay}
         onSeek={seek}
         onStepFrame={stepFrame}
+        onSkip={skip}
         onSetPlaybackRate={setPlaybackRate}
+        onSetVolume={setVolume}
         onToggleMute={toggleMute}
         formatTimecode={formatTimecode}
       />

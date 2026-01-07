@@ -75,17 +75,29 @@ export function useVideoPlayer() {
 
   const seek = useCallback((time: number) => {
     if (videoRef.current) {
-      videoRef.current.currentTime = Math.max(0, Math.min(time, videoState.duration));
+      const clampedTime = Math.max(0, Math.min(time, videoRef.current.duration || videoState.duration));
+      videoRef.current.currentTime = clampedTime;
+      updateVideoState({ currentTime: clampedTime });
     }
-  }, [videoState.duration]);
+  }, [videoState.duration, updateVideoState]);
+
+  const skip = useCallback((seconds: number) => {
+    if (videoRef.current) {
+      const newTime = videoRef.current.currentTime + seconds;
+      seek(newTime);
+    }
+  }, [seek]);
 
   const stepFrame = useCallback((direction: 'forward' | 'backward') => {
-    const frameTime = 1 / 30; // Assume 30fps
-    const newTime = direction === 'forward' 
-      ? videoState.currentTime + frameTime 
-      : videoState.currentTime - frameTime;
-    seek(newTime);
-  }, [videoState.currentTime, seek]);
+    if (videoRef.current) {
+      videoRef.current.pause();
+      const frameTime = 1 / 30; // Assume 30fps
+      const newTime = direction === 'forward' 
+        ? videoRef.current.currentTime + frameTime 
+        : videoRef.current.currentTime - frameTime;
+      seek(newTime);
+    }
+  }, [seek]);
 
   const setPlaybackRate = useCallback((rate: number) => {
     if (videoRef.current) {
@@ -147,6 +159,7 @@ export function useVideoPlayer() {
     pause,
     togglePlay,
     seek,
+    skip,
     stepFrame,
     setPlaybackRate,
     setVolume,

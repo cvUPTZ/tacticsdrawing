@@ -1,6 +1,7 @@
-import { Eye, EyeOff, Trash2, User, ArrowRight, Circle, Route, Lightbulb, Minus, Target, Slash, MapPin, Spline, Shield, Ruler } from 'lucide-react';
+import { Eye, EyeOff, Trash2, User, ArrowRight, Circle, Route, Lightbulb, Minus, Target, Slash, MapPin, Spline, Shield, Ruler, RotateCw, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Slider } from '@/components/ui/slider';
 import { Annotation } from '@/types/analysis';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +11,7 @@ interface AnnotationsListProps {
   onSelect: (id: string | null) => void;
   onToggleVisibility: (id: string) => void;
   onDelete: (id: string) => void;
+  onUpdate?: (id: string, updates: Partial<Annotation>) => void;
 }
 
 const TYPE_ICONS: Record<Annotation['type'], typeof User> = {
@@ -50,7 +52,13 @@ export function AnnotationsList({
   onSelect,
   onToggleVisibility,
   onDelete,
+  onUpdate,
 }: AnnotationsListProps) {
+  const selectedAnnotation = annotations.find(a => a.id === selectedId);
+  const isZoneSelected = selectedAnnotation?.type === 'zone';
+  const isShieldSelected = selectedAnnotation?.type === 'shield';
+  const canResize = isZoneSelected || isShieldSelected;
+
   if (annotations.length === 0) {
     return (
       <div className="glass-panel rounded-lg p-3">
@@ -69,7 +77,7 @@ export function AnnotationsList({
         <span className="text-[10px] text-muted-foreground font-mono">{annotations.length}</span>
       </div>
 
-      <ScrollArea className="h-48">
+      <ScrollArea className="h-36">
         <div className="space-y-1">
           {annotations.map((annotation) => {
             const Icon = TYPE_ICONS[annotation.type];
@@ -135,6 +143,84 @@ export function AnnotationsList({
           })}
         </div>
       </ScrollArea>
+
+      {/* Zone/Shield Edit Controls */}
+      {canResize && selectedAnnotation && onUpdate && (
+        <div className="mt-3 pt-3 border-t border-border/50 space-y-3">
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <Maximize2 className="h-3 w-3" />
+            <span>Edit {TYPE_LABELS[selectedAnnotation.type]}</span>
+          </div>
+
+          {/* Scale slider */}
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Maximize2 className="h-2.5 w-2.5" />
+                Scale
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {((selectedAnnotation.scale || 1) * 100).toFixed(0)}%
+              </span>
+            </div>
+            <Slider
+              value={[(selectedAnnotation.scale || 1) * 100]}
+              onValueChange={([v]) => onUpdate(selectedAnnotation.id, { scale: v / 100 })}
+              min={25}
+              max={300}
+              step={5}
+            />
+          </div>
+
+          {/* Rotation slider */}
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <RotateCw className="h-2.5 w-2.5" />
+                Rotation
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {((selectedAnnotation.rotation || 0) * (180 / Math.PI)).toFixed(0)}°
+              </span>
+            </div>
+            <Slider
+              value={[(selectedAnnotation.rotation || 0) * (180 / Math.PI)]}
+              onValueChange={([v]) => onUpdate(selectedAnnotation.id, { rotation: v * (Math.PI / 180) })}
+              min={-180}
+              max={180}
+              step={5}
+            />
+          </div>
+
+          {/* Quick actions */}
+          <div className="flex gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onUpdate(selectedAnnotation.id, { scale: 1, rotation: 0 })}
+              className="flex-1 h-6 text-[9px]"
+            >
+              Reset
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onUpdate(selectedAnnotation.id, { rotation: (selectedAnnotation.rotation || 0) + Math.PI / 4 })}
+              className="flex-1 h-6 text-[9px]"
+            >
+              +45°
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onUpdate(selectedAnnotation.id, { scale: (selectedAnnotation.scale || 1) * 1.25 })}
+              className="flex-1 h-6 text-[9px]"
+            >
+              +25%
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
