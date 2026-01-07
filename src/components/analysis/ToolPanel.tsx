@@ -11,45 +11,52 @@ import {
   Download,
   Save,
   Route,
-  Users,
+  Minus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { ToolMode, ANNOTATION_COLORS, PLAYER_COLORS } from '@/types/analysis';
 import { cn } from '@/lib/utils';
 
 interface ToolPanelProps {
   currentTool: ToolMode;
   currentColor: string;
+  isDashed: boolean;
   onToolChange: (tool: ToolMode) => void;
   onColorChange: (color: string) => void;
+  onDashedChange: (dashed: boolean) => void;
   onClearAnnotations: () => void;
   onExport: () => void;
   onSave: () => void;
   hasVideo: boolean;
 }
 
-const TOOLS: { id: ToolMode; icon: typeof MousePointer2; label: string; description: string }[] = [
-  { id: 'select', icon: MousePointer2, label: 'Select', description: 'Select & move' },
-  { id: 'pan', icon: Move, label: 'Pan', description: 'Pan view' },
-  { id: 'player', icon: User, label: 'Player', description: 'Add player marker' },
-  { id: 'arrow', icon: ArrowRight, label: 'Pass', description: 'Draw pass arrow' },
-  { id: 'freehand', icon: Route, label: 'Movement', description: 'Draw run path' },
-  { id: 'zone', icon: Circle, label: 'Zone', description: 'Mark zone' },
-  { id: 'spotlight', icon: Lightbulb, label: 'Spotlight', description: 'Highlight area' },
-  { id: 'text', icon: Type, label: 'Text', description: 'Add label' },
+const TOOLS: { id: ToolMode; icon: typeof MousePointer2; label: string; shortcut: string }[] = [
+  { id: 'select', icon: MousePointer2, label: 'Select', shortcut: 'V' },
+  { id: 'pan', icon: Move, label: 'Pan', shortcut: 'H' },
+  { id: 'player', icon: User, label: 'Player', shortcut: 'P' },
+  { id: 'arrow', icon: ArrowRight, label: 'Pass', shortcut: 'A' },
+  { id: 'freehand', icon: Route, label: 'Movement', shortcut: 'D' },
+  { id: 'zone', icon: Circle, label: 'Zone', shortcut: 'Z' },
+  { id: 'spotlight', icon: Lightbulb, label: 'Spotlight', shortcut: 'S' },
+  { id: 'offside', icon: Minus, label: 'Offside', shortcut: 'O' },
 ];
 
 const QUICK_COLORS = {
   home: PLAYER_COLORS.home[0],
   away: PLAYER_COLORS.away[0],
+  pass: '#ff8800',
 };
 
 export function ToolPanel({
   currentTool,
   currentColor,
+  isDashed,
   onToolChange,
   onColorChange,
+  onDashedChange,
   onClearAnnotations,
   onExport,
   onSave,
@@ -72,7 +79,7 @@ export function ToolPanel({
                 "h-9 justify-start gap-2 text-xs",
                 currentTool === tool.id && "tool-active"
               )}
-              title={tool.description}
+              title={`${tool.label} (${tool.shortcut})`}
             >
               <tool.icon className="h-4 w-4" />
               <span className="hidden xl:inline">{tool.label}</span>
@@ -83,20 +90,20 @@ export function ToolPanel({
 
       <Separator className="bg-border/50" />
 
-      {/* Team Colors */}
+      {/* Quick Team Colors */}
       <div className="space-y-1">
-        <span className="hud-text text-[10px] text-muted-foreground">Team</span>
+        <span className="hud-text text-[10px] text-muted-foreground">Quick Colors</span>
         <div className="flex gap-1">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onColorChange(QUICK_COLORS.home)}
             className={cn(
-              "flex-1 h-8 text-xs gap-1",
-              currentColor === QUICK_COLORS.home && "border-primary"
+              "flex-1 h-7 text-[10px] px-2 gap-1",
+              currentColor === QUICK_COLORS.home && "border-primary bg-primary/10"
             )}
           >
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: QUICK_COLORS.home }} />
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: QUICK_COLORS.home }} />
             Home
           </Button>
           <Button
@@ -104,39 +111,71 @@ export function ToolPanel({
             size="sm"
             onClick={() => onColorChange(QUICK_COLORS.away)}
             className={cn(
-              "flex-1 h-8 text-xs gap-1",
-              currentColor === QUICK_COLORS.away && "border-primary"
+              "flex-1 h-7 text-[10px] px-2 gap-1",
+              currentColor === QUICK_COLORS.away && "border-primary bg-primary/10"
             )}
           >
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: QUICK_COLORS.away }} />
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: QUICK_COLORS.away }} />
             Away
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onColorChange(QUICK_COLORS.pass)}
+            className={cn(
+              "flex-1 h-7 text-[10px] px-2 gap-1",
+              currentColor === QUICK_COLORS.pass && "border-primary bg-primary/10"
+            )}
+          >
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: QUICK_COLORS.pass }} />
+            Pass
           </Button>
         </div>
       </div>
 
       <Separator className="bg-border/50" />
 
-      {/* Colors */}
+      {/* All Colors */}
       <div className="space-y-1">
-        <span className="hud-text text-[10px] text-muted-foreground">Color</span>
+        <span className="hud-text text-[10px] text-muted-foreground">Colors</span>
         <div className="flex flex-wrap gap-1">
           {ANNOTATION_COLORS.map((color) => (
             <button
               key={color}
               onClick={() => onColorChange(color)}
               className={cn(
-                "w-6 h-6 rounded-full border-2 transition-all hover:scale-110",
+                "w-5 h-5 rounded-full border-2 transition-all hover:scale-110",
                 currentColor === color 
-                  ? "border-foreground scale-110 shadow-lg" 
+                  ? "border-foreground scale-110" 
                   : "border-transparent hover:border-foreground/50"
               )}
               style={{ 
                 backgroundColor: color,
-                boxShadow: currentColor === color ? `0 0 12px ${color}` : undefined,
+                boxShadow: currentColor === color ? `0 0 10px ${color}` : undefined,
               }}
               title={color}
             />
           ))}
+        </div>
+      </div>
+
+      <Separator className="bg-border/50" />
+
+      {/* Line Style */}
+      <div className="space-y-1">
+        <span className="hud-text text-[10px] text-muted-foreground">Line Style</span>
+        <div className="flex items-center justify-between py-1">
+          <Label htmlFor="dashed-mode" className="text-xs flex items-center gap-2">
+            <span className="w-8 h-0.5 bg-current" style={{ 
+              backgroundImage: isDashed ? 'repeating-linear-gradient(90deg, currentColor 0, currentColor 4px, transparent 4px, transparent 8px)' : undefined 
+            }} />
+            {isDashed ? 'Dashed' : 'Solid'}
+          </Label>
+          <Switch
+            id="dashed-mode"
+            checked={isDashed}
+            onCheckedChange={onDashedChange}
+          />
         </div>
       </div>
 

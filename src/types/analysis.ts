@@ -1,8 +1,8 @@
 // Core types for the video analysis platform
 
-export type AnnotationType = 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text';
+export type AnnotationType = 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'offside';
 
-export type ToolMode = 'select' | 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'pan';
+export type ToolMode = 'select' | 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'pan' | 'offside';
 
 export interface Vector3 {
   x: number;
@@ -96,11 +96,14 @@ export const PLAYER_COLORS = {
 export const ANNOTATION_COLORS = [
   '#00d4ff', // Cyan (primary - home)
   '#ff4444', // Red (away)
-  '#ff8800', // Orange (accent)
-  '#00ff88', // Green
+  '#ff8800', // Orange (accent - passes)
+  '#00ff88', // Green (movement)
   '#ffff00', // Yellow
   '#aa44ff', // Purple
   '#ff44aa', // Pink
   '#ffffff', // White
   '#1a1a1a', // Black
 ];
+
+// Arrow styles
+export type ArrowStyle = 'solid' | 'dashed' | 'dotted';

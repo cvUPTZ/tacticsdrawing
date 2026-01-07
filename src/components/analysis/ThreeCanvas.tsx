@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { Annotation, CalibrationState, ToolMode, Vector3 } from '@/types/analysis';
 
@@ -8,6 +8,15 @@ interface ThreeCanvasProps {
   toolMode: ToolMode;
   isInteractive: boolean;
   onPitchClick?: (position: Vector3) => void;
+}
+
+interface LabelData {
+  id: string;
+  text: string;
+  screenX: number;
+  screenY: number;
+  color: string;
+  visible: boolean;
 }
 
 // Create curved arrow path
@@ -25,6 +34,17 @@ function createTubeFromCurve(curve: THREE.Curve<THREE.Vector3>, radius: number =
   return new THREE.TubeGeometry(curve, 32, radius, 8, false);
 }
 
+// Create dashed line material
+function createDashedLineMaterial(color: THREE.Color, dashSize: number = 1, gapSize: number = 0.5): THREE.LineDashedMaterial {
+  return new THREE.LineDashedMaterial({
+    color,
+    dashSize,
+    gapSize,
+    transparent: true,
+    opacity: 0.9,
+  });
+}
+
 export function ThreeCanvas({
   calibration,
   annotations,
@@ -39,6 +59,7 @@ export function ThreeCanvas({
   const annotationGroupRef = useRef<THREE.Group | null>(null);
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const pitchPlaneRef = useRef<THREE.Mesh | null>(null);
+  const [labels, setLabels] = useState<LabelData[]>([]);
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -77,7 +98,7 @@ export function ThreeCanvas({
     const pitchMaterial = new THREE.MeshBasicMaterial({ 
       color: 0x2d8a3e,
       transparent: true,
-      opacity: 0.05,
+      opacity: 0.02,
       side: THREE.DoubleSide,
     });
     const pitchPlane = new THREE.Mesh(pitchGeometry, pitchMaterial);
@@ -86,11 +107,11 @@ export function ThreeCanvas({
     scene.add(pitchPlane);
     pitchPlaneRef.current = pitchPlane;
 
-    // Pitch lines with glow effect
+    // Pitch lines with subtle visibility
     const linesMaterial = new THREE.LineBasicMaterial({ 
       color: 0xffffff, 
       transparent: true, 
-      opacity: 0.5,
+      opacity: 0.3,
     });
 
     // Draw pitch outline
@@ -115,20 +136,19 @@ export function ThreeCanvas({
     scene.add(centerLine);
 
     // Center circle
-    const centerCircle = new THREE.RingGeometry(9, 9.15, 64);
+    const centerCircle = new THREE.RingGeometry(9, 9.1, 64);
     const centerCircleMesh = new THREE.Mesh(
       centerCircle,
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
     );
     centerCircleMesh.rotation.x = -Math.PI / 2;
     centerCircleMesh.position.y = 0.01;
     scene.add(centerCircleMesh);
 
-    // Penalty areas (16.5m x 40.3m)
+    // Penalty areas
     const penaltyWidth = 40.3;
     const penaltyDepth = 16.5;
     
-    // Left penalty area
     const leftPenaltyPoints = [
       new THREE.Vector3(-pitchWidth/2, 0.01, -penaltyWidth/2),
       new THREE.Vector3(-pitchWidth/2 + penaltyDepth, 0.01, -penaltyWidth/2),
@@ -138,7 +158,6 @@ export function ThreeCanvas({
     const leftPenaltyGeometry = new THREE.BufferGeometry().setFromPoints(leftPenaltyPoints);
     scene.add(new THREE.Line(leftPenaltyGeometry, linesMaterial));
 
-    // Right penalty area
     const rightPenaltyPoints = [
       new THREE.Vector3(pitchWidth/2, 0.01, -penaltyWidth/2),
       new THREE.Vector3(pitchWidth/2 - penaltyDepth, 0.01, -penaltyWidth/2),
@@ -148,39 +167,18 @@ export function ThreeCanvas({
     const rightPenaltyGeometry = new THREE.BufferGeometry().setFromPoints(rightPenaltyPoints);
     scene.add(new THREE.Line(rightPenaltyGeometry, linesMaterial));
 
-    // 6-yard boxes
-    const sixYardWidth = 18.32;
-    const sixYardDepth = 5.5;
-
-    // Left 6-yard box
-    const leftSixYardPoints = [
-      new THREE.Vector3(-pitchWidth/2, 0.01, -sixYardWidth/2),
-      new THREE.Vector3(-pitchWidth/2 + sixYardDepth, 0.01, -sixYardWidth/2),
-      new THREE.Vector3(-pitchWidth/2 + sixYardDepth, 0.01, sixYardWidth/2),
-      new THREE.Vector3(-pitchWidth/2, 0.01, sixYardWidth/2),
-    ];
-    const leftSixYardGeometry = new THREE.BufferGeometry().setFromPoints(leftSixYardPoints);
-    scene.add(new THREE.Line(leftSixYardGeometry, linesMaterial));
-
-    // Right 6-yard box
-    const rightSixYardPoints = [
-      new THREE.Vector3(pitchWidth/2, 0.01, -sixYardWidth/2),
-      new THREE.Vector3(pitchWidth/2 - sixYardDepth, 0.01, -sixYardWidth/2),
-      new THREE.Vector3(pitchWidth/2 - sixYardDepth, 0.01, sixYardWidth/2),
-      new THREE.Vector3(pitchWidth/2, 0.01, sixYardWidth/2),
-    ];
-    const rightSixYardGeometry = new THREE.BufferGeometry().setFromPoints(rightSixYardPoints);
-    scene.add(new THREE.Line(rightSixYardGeometry, linesMaterial));
-
     // Annotation group
     const annotationGroup = new THREE.Group();
     scene.add(annotationGroup);
     annotationGroupRef.current = annotationGroup;
 
-    // Animation loop
+    // Animation loop with label updates
     const animate = () => {
       requestAnimationFrame(animate);
       renderer.render(scene, camera);
+      
+      // Update label positions
+      updateLabelPositions();
     };
     animate();
 
@@ -202,6 +200,38 @@ export function ThreeCanvas({
     };
   }, []);
 
+  // Update label positions from 3D to screen space
+  const updateLabelPositions = useCallback(() => {
+    const camera = cameraRef.current;
+    const container = containerRef.current;
+    if (!camera || !container) return;
+
+    const newLabels: LabelData[] = [];
+    
+    annotations.forEach(annotation => {
+      if (!annotation.visible) return;
+      if (annotation.type !== 'player' && annotation.type !== 'spotlight') return;
+      if (!annotation.label) return;
+
+      const pos = new THREE.Vector3(annotation.position.x, 2, annotation.position.z);
+      const projected = pos.clone().project(camera);
+      
+      const x = (projected.x * 0.5 + 0.5) * container.clientWidth;
+      const y = (-projected.y * 0.5 + 0.5) * container.clientHeight;
+      
+      newLabels.push({
+        id: annotation.id,
+        text: annotation.label,
+        screenX: x,
+        screenY: y - 30, // Offset above marker
+        color: annotation.color,
+        visible: projected.z < 1,
+      });
+    });
+
+    setLabels(newLabels);
+  }, [annotations]);
+
   // Update camera based on calibration
   useEffect(() => {
     const camera = cameraRef.current;
@@ -213,7 +243,7 @@ export function ThreeCanvas({
     camera.updateProjectionMatrix();
   }, [calibration]);
 
-  // Update annotations with enhanced visuals
+  // Update annotations with Metrica Play style visuals
   useEffect(() => {
     const group = annotationGroupRef.current;
     if (!group) return;
@@ -237,98 +267,90 @@ export function ThreeCanvas({
       if (!annotation.visible) return;
 
       const color = new THREE.Color(annotation.color);
-      const isHomeTeam = annotation.metadata?.team === 'home';
+      const isDashed = annotation.metadata?.dashed === true;
 
+      // PLAYER MARKER - Red/Cyan circle with number
       if (annotation.type === 'player') {
-        // Player marker - 3D disc with number
-        const playerNumber = annotation.label || '?';
-        
-        // Outer glow ring
-        const glowRingGeometry = new THREE.RingGeometry(2.2, 3, 32);
-        const glowRingMaterial = new THREE.MeshBasicMaterial({ 
-          color, 
+        // Ground shadow/glow
+        const shadowGeometry = new THREE.CircleGeometry(2.8, 32);
+        const shadowMaterial = new THREE.MeshBasicMaterial({ 
+          color: 0x000000, 
           transparent: true, 
           opacity: 0.3,
           side: THREE.DoubleSide,
         });
-        const glowRing = new THREE.Mesh(glowRingGeometry, glowRingMaterial);
-        glowRing.rotation.x = -Math.PI / 2;
-        glowRing.position.set(annotation.position.x, 0.02, annotation.position.z);
-        group.add(glowRing);
+        const shadow = new THREE.Mesh(shadowGeometry, shadowMaterial);
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.set(annotation.position.x, 0.01, annotation.position.z);
+        group.add(shadow);
 
-        // Main disc
-        const discGeometry = new THREE.CylinderGeometry(2, 2, 0.3, 32);
-        const discMaterial = new THREE.MeshBasicMaterial({ 
+        // Main colored circle (filled)
+        const circleGeometry = new THREE.CircleGeometry(2.2, 32);
+        const circleMaterial = new THREE.MeshBasicMaterial({ 
           color,
           transparent: true,
-          opacity: 0.95,
-        });
-        const disc = new THREE.Mesh(discGeometry, discMaterial);
-        disc.position.set(annotation.position.x, 0.15, annotation.position.z);
-        group.add(disc);
-
-        // Inner circle (darker)
-        const innerCircleGeometry = new THREE.CircleGeometry(1.3, 32);
-        const innerCircleMaterial = new THREE.MeshBasicMaterial({ 
-          color: new THREE.Color(color).multiplyScalar(0.3), 
+          opacity: 0.85,
           side: THREE.DoubleSide,
         });
-        const innerCircle = new THREE.Mesh(innerCircleGeometry, innerCircleMaterial);
-        innerCircle.rotation.x = -Math.PI / 2;
-        innerCircle.position.set(annotation.position.x, 0.32, annotation.position.z);
-        group.add(innerCircle);
+        const circle = new THREE.Mesh(circleGeometry, circleMaterial);
+        circle.rotation.x = -Math.PI / 2;
+        circle.position.set(annotation.position.x, 0.02, annotation.position.z);
+        group.add(circle);
 
-        // Direction indicator (small triangle at edge)
-        if (annotation.endPosition) {
-          const direction = new THREE.Vector2(
-            annotation.endPosition.x - annotation.position.x,
-            annotation.endPosition.z - annotation.position.z
-          ).normalize();
-          
-          const indicatorGeometry = new THREE.ConeGeometry(0.5, 1, 3);
-          const indicatorMaterial = new THREE.MeshBasicMaterial({ color });
-          const indicator = new THREE.Mesh(indicatorGeometry, indicatorMaterial);
-          indicator.position.set(
-            annotation.position.x + direction.x * 2.5,
-            0.5,
-            annotation.position.z + direction.y * 2.5
-          );
-          indicator.rotation.x = Math.PI / 2;
-          indicator.rotation.z = -Math.atan2(direction.x, direction.y);
-          group.add(indicator);
-        }
+        // Bright edge ring
+        const ringGeometry = new THREE.RingGeometry(2.0, 2.3, 32);
+        const ringMaterial = new THREE.MeshBasicMaterial({ 
+          color: new THREE.Color(color).multiplyScalar(1.3), 
+          transparent: true, 
+          opacity: 0.95,
+          side: THREE.DoubleSide,
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(annotation.position.x, 0.03, annotation.position.z);
+        group.add(ring);
       }
 
+      // PASS ARROW - Curved orange arrow with optional dashing
       if (annotation.type === 'arrow' && annotation.endPosition) {
-        const startVec = new THREE.Vector3(annotation.position.x, 0.5, annotation.position.z);
-        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.5, annotation.endPosition.z);
+        const startVec = new THREE.Vector3(annotation.position.x, 0.3, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.3, annotation.endPosition.z);
         
-        // Calculate curve height based on distance
         const distance = startVec.distanceTo(endVec);
-        const curveHeight = Math.min(distance * 0.15, 5);
+        const curveHeight = Math.min(distance * 0.12, 8);
         
         // Create curved path
         const curve = createCurvedArrowPath(startVec, endVec, curveHeight);
-        
-        // Tube geometry for thick curved line
-        const tubeGeometry = createTubeFromCurve(curve, 0.2);
-        const tubeMaterial = new THREE.MeshBasicMaterial({ 
-          color,
-          transparent: true,
-          opacity: 0.9,
-        });
-        const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
-        group.add(tube);
+        const points = curve.getPoints(50);
 
-        // Glow tube (larger, more transparent)
-        const glowTubeGeometry = createTubeFromCurve(curve, 0.4);
-        const glowTubeMaterial = new THREE.MeshBasicMaterial({ 
-          color,
-          transparent: true,
-          opacity: 0.3,
-        });
-        const glowTube = new THREE.Mesh(glowTubeGeometry, glowTubeMaterial);
-        group.add(glowTube);
+        if (isDashed) {
+          // Dashed curved line
+          const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+          const dashedMaterial = createDashedLineMaterial(color, 1.5, 1);
+          const dashedLine = new THREE.Line(lineGeometry, dashedMaterial);
+          dashedLine.computeLineDistances();
+          group.add(dashedLine);
+        } else {
+          // Solid tube
+          const tubeGeometry = createTubeFromCurve(curve, 0.25);
+          const tubeMaterial = new THREE.MeshBasicMaterial({ 
+            color,
+            transparent: true,
+            opacity: 0.95,
+          });
+          const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+          group.add(tube);
+
+          // Glow effect
+          const glowTubeGeometry = createTubeFromCurve(curve, 0.5);
+          const glowTubeMaterial = new THREE.MeshBasicMaterial({ 
+            color,
+            transparent: true,
+            opacity: 0.2,
+          });
+          const glowTube = new THREE.Mesh(glowTubeGeometry, glowTubeMaterial);
+          group.add(glowTube);
+        }
 
         // Arrowhead
         const direction = new THREE.Vector3(
@@ -337,7 +359,7 @@ export function ThreeCanvas({
           annotation.endPosition.z - annotation.position.z
         ).normalize();
         
-        const arrowHeadGeometry = new THREE.ConeGeometry(0.8, 2.5, 8);
+        const arrowHeadGeometry = new THREE.ConeGeometry(0.9, 2.5, 8);
         const arrowHeadMaterial = new THREE.MeshBasicMaterial({ color });
         const arrowHead = new THREE.Mesh(arrowHeadGeometry, arrowHeadMaterial);
         arrowHead.position.copy(endVec);
@@ -346,15 +368,16 @@ export function ThreeCanvas({
         group.add(arrowHead);
       }
 
+      // ZONE - Red/colored circular area
       if (annotation.type === 'zone') {
-        const radius = annotation.radius || 10;
+        const radius = annotation.radius || 8;
         
-        // Filled zone
+        // Filled zone with gradient-like effect
         const circleGeometry = new THREE.CircleGeometry(radius, 48);
         const circleMaterial = new THREE.MeshBasicMaterial({ 
           color, 
           transparent: true, 
-          opacity: 0.2,
+          opacity: 0.35,
           side: THREE.DoubleSide,
         });
         const circle = new THREE.Mesh(circleGeometry, circleMaterial);
@@ -362,112 +385,142 @@ export function ThreeCanvas({
         circle.position.set(annotation.position.x, 0.02, annotation.position.z);
         group.add(circle);
 
-        // Zone outline with glow
-        const ringGeometry = new THREE.RingGeometry(radius - 0.3, radius, 64);
+        // Darker inner area
+        const innerGeometry = new THREE.CircleGeometry(radius * 0.6, 48);
+        const innerMaterial = new THREE.MeshBasicMaterial({ 
+          color, 
+          transparent: true, 
+          opacity: 0.25,
+          side: THREE.DoubleSide,
+        });
+        const inner = new THREE.Mesh(innerGeometry, innerMaterial);
+        inner.rotation.x = -Math.PI / 2;
+        inner.position.set(annotation.position.x, 0.025, annotation.position.z);
+        group.add(inner);
+
+        // Edge ring
+        const ringGeometry = new THREE.RingGeometry(radius - 0.2, radius, 64);
         const ringMaterial = new THREE.MeshBasicMaterial({ 
           color, 
           transparent: true, 
-          opacity: 0.8,
+          opacity: 0.7,
           side: THREE.DoubleSide,
         });
         const ring = new THREE.Mesh(ringGeometry, ringMaterial);
         ring.rotation.x = -Math.PI / 2;
         ring.position.set(annotation.position.x, 0.03, annotation.position.z);
         group.add(ring);
-
-        // Outer glow
-        const glowRingGeometry = new THREE.RingGeometry(radius, radius + 1, 64);
-        const glowRingMaterial = new THREE.MeshBasicMaterial({ 
-          color, 
-          transparent: true, 
-          opacity: 0.3,
-          side: THREE.DoubleSide,
-        });
-        const glowRing = new THREE.Mesh(glowRingGeometry, glowRingMaterial);
-        glowRing.rotation.x = -Math.PI / 2;
-        glowRing.position.set(annotation.position.x, 0.03, annotation.position.z);
-        group.add(glowRing);
       }
 
+      // FREEHAND / MOVEMENT PATH
       if (annotation.type === 'freehand' && annotation.points && annotation.points.length > 1) {
-        // Movement path / freehand drawing
         const points = annotation.points.map(p => new THREE.Vector3(p.x, 0.3, p.z));
-        
-        // Create smooth curve through points
         const curve = new THREE.CatmullRomCurve3(points);
-        const tubeGeometry = new THREE.TubeGeometry(curve, 64, 0.15, 8, false);
-        const tubeMaterial = new THREE.MeshBasicMaterial({ 
-          color,
-          transparent: true,
-          opacity: 0.85,
-        });
-        const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
-        group.add(tube);
+        
+        if (isDashed) {
+          const linePoints = curve.getPoints(64);
+          const lineGeometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+          const dashedMaterial = createDashedLineMaterial(color, 1.2, 0.8);
+          const dashedLine = new THREE.Line(lineGeometry, dashedMaterial);
+          dashedLine.computeLineDistances();
+          group.add(dashedLine);
+        } else {
+          const tubeGeometry = new THREE.TubeGeometry(curve, 64, 0.2, 8, false);
+          const tubeMaterial = new THREE.MeshBasicMaterial({ 
+            color,
+            transparent: true,
+            opacity: 0.9,
+          });
+          const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+          group.add(tube);
+        }
 
-        // Glow effect
-        const glowTubeGeometry = new THREE.TubeGeometry(curve, 64, 0.35, 8, false);
-        const glowTubeMaterial = new THREE.MeshBasicMaterial({ 
-          color,
-          transparent: true,
-          opacity: 0.25,
-        });
-        const glowTube = new THREE.Mesh(glowTubeGeometry, glowTubeMaterial);
-        group.add(glowTube);
-
-        // End marker (small sphere)
+        // End marker
         if (points.length > 0) {
           const lastPoint = points[points.length - 1];
-          const endMarkerGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+          const endMarkerGeometry = new THREE.ConeGeometry(0.6, 1.5, 8);
           const endMarkerMaterial = new THREE.MeshBasicMaterial({ color });
           const endMarker = new THREE.Mesh(endMarkerGeometry, endMarkerMaterial);
-          endMarker.position.copy(lastPoint);
+          
+          // Calculate direction for arrow
+          if (points.length >= 2) {
+            const prevPoint = points[points.length - 2];
+            const direction = new THREE.Vector3().subVectors(lastPoint, prevPoint).normalize();
+            endMarker.position.copy(lastPoint);
+            endMarker.rotation.x = Math.PI / 2;
+            endMarker.rotation.z = -Math.atan2(direction.x, direction.z);
+          } else {
+            endMarker.position.copy(lastPoint);
+          }
           group.add(endMarker);
         }
       }
 
+      // SPOTLIGHT - Vertical column highlighting player
       if (annotation.type === 'spotlight') {
-        // Volumetric spotlight effect
-        const coneHeight = 25;
-        const coneRadius = 6;
+        const columnHeight = 30;
+        const columnRadius = 3;
         
-        // Light cone
-        const coneGeometry = new THREE.ConeGeometry(coneRadius, coneHeight, 32, 1, true);
-        const coneMaterial = new THREE.MeshBasicMaterial({ 
+        // Vertical transparent column
+        const columnGeometry = new THREE.CylinderGeometry(columnRadius, columnRadius, columnHeight, 32, 1, true);
+        const columnMaterial = new THREE.MeshBasicMaterial({ 
           color, 
           transparent: true, 
-          opacity: 0.1,
+          opacity: 0.12,
           side: THREE.DoubleSide,
         });
-        const cone = new THREE.Mesh(coneGeometry, coneMaterial);
-        cone.position.set(annotation.position.x, coneHeight / 2, annotation.position.z);
-        cone.rotation.x = Math.PI;
-        group.add(cone);
+        const column = new THREE.Mesh(columnGeometry, columnMaterial);
+        column.position.set(annotation.position.x, columnHeight / 2, annotation.position.z);
+        group.add(column);
 
-        // Ground highlight
-        const groundCircle = new THREE.CircleGeometry(coneRadius, 32);
+        // Brighter inner column
+        const innerColumnGeometry = new THREE.CylinderGeometry(columnRadius * 0.6, columnRadius * 0.6, columnHeight, 32, 1, true);
+        const innerColumnMaterial = new THREE.MeshBasicMaterial({ 
+          color, 
+          transparent: true, 
+          opacity: 0.08,
+          side: THREE.DoubleSide,
+        });
+        const innerColumn = new THREE.Mesh(innerColumnGeometry, innerColumnMaterial);
+        innerColumn.position.set(annotation.position.x, columnHeight / 2, annotation.position.z);
+        group.add(innerColumn);
+
+        // Ground circle
+        const groundGeometry = new THREE.CircleGeometry(columnRadius, 32);
         const groundMaterial = new THREE.MeshBasicMaterial({ 
           color, 
           transparent: true, 
-          opacity: 0.4,
+          opacity: 0.25,
           side: THREE.DoubleSide,
         });
-        const ground = new THREE.Mesh(groundCircle, groundMaterial);
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
         ground.position.set(annotation.position.x, 0.02, annotation.position.z);
         group.add(ground);
+      }
 
-        // Outer glow on ground
-        const groundGlow = new THREE.RingGeometry(coneRadius, coneRadius + 2, 32);
-        const groundGlowMaterial = new THREE.MeshBasicMaterial({ 
-          color, 
-          transparent: true, 
-          opacity: 0.2,
-          side: THREE.DoubleSide,
-        });
-        const groundGlowMesh = new THREE.Mesh(groundGlow, groundGlowMaterial);
-        groundGlowMesh.rotation.x = -Math.PI / 2;
-        groundGlowMesh.position.set(annotation.position.x, 0.02, annotation.position.z);
-        group.add(groundGlowMesh);
+      // OFFSIDE LINE - Dashed horizontal line
+      if (annotation.type === 'offside' && annotation.endPosition) {
+        const startVec = new THREE.Vector3(annotation.position.x, 0.2, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.2, annotation.endPosition.z);
+        
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints([startVec, endVec]);
+        const dashedMaterial = createDashedLineMaterial(color, 2, 1);
+        const dashedLine = new THREE.Line(lineGeometry, dashedMaterial);
+        dashedLine.computeLineDistances();
+        group.add(dashedLine);
+
+        // Vertical markers at endpoints
+        const markerGeometry = new THREE.CylinderGeometry(0.15, 0.15, 3, 8);
+        const markerMaterial = new THREE.MeshBasicMaterial({ color });
+        
+        const startMarker = new THREE.Mesh(markerGeometry, markerMaterial);
+        startMarker.position.set(startVec.x, 1.5, startVec.z);
+        group.add(startMarker);
+        
+        const endMarker = new THREE.Mesh(markerGeometry, markerMaterial.clone());
+        endMarker.position.set(endVec.x, 1.5, endVec.z);
+        group.add(endMarker);
       }
     });
   }, [annotations]);
@@ -502,6 +555,31 @@ export function ThreeCanvas({
       ref={containerRef}
       className={`three-layer ${isInteractive ? 'interactive' : ''}`}
       onClick={handleClick}
-    />
+    >
+      {/* HTML Labels for player names */}
+      {labels.map(label => (
+        label.visible && (
+          <div
+            key={label.id}
+            className="absolute pointer-events-none z-10 transform -translate-x-1/2"
+            style={{
+              left: label.screenX,
+              top: label.screenY,
+            }}
+          >
+            <div 
+              className="px-2 py-0.5 rounded text-xs font-bold text-white whitespace-nowrap"
+              style={{ 
+                backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                border: `1px solid ${label.color}`,
+                boxShadow: `0 0 8px ${label.color}40`,
+              }}
+            >
+              {label.text}
+            </div>
+          </div>
+        )
+      ))}
+    </div>
   );
 }
