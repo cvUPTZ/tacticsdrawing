@@ -2,12 +2,19 @@ import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { CalibrationState } from '@/types/analysis';
-import { RotateCcw, Camera, Move3D, Maximize2 } from 'lucide-react';
+import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, CornerDownRight } from 'lucide-react';
 import { useState } from 'react';
 
 interface PitchScale {
   width: number;
   height: number;
+}
+
+export interface CornerCalibrationPoint {
+  id: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
+  label: string;
+  screenX?: number;
+  screenY?: number;
 }
 
 interface CalibrationPanelProps {
@@ -19,6 +26,11 @@ interface CalibrationPanelProps {
   onApplyPreset: (preset: 'broadcast' | 'tactical' | 'sideline' | 'behindGoal') => void;
   pitchScale?: PitchScale;
   onPitchScaleChange?: (scale: PitchScale) => void;
+  isCornerCalibrating?: boolean;
+  onToggleCornerCalibrating?: () => void;
+  cornerPoints?: CornerCalibrationPoint[];
+  activeCorner?: string | null;
+  onSetActiveCorner?: (corner: string | null) => void;
 }
 
 const PRESETS = [
@@ -37,11 +49,23 @@ export function CalibrationPanel({
   onApplyPreset,
   pitchScale = { width: 1, height: 1 },
   onPitchScaleChange,
+  isCornerCalibrating,
+  onToggleCornerCalibrating,
+  cornerPoints = [],
+  activeCorner,
+  onSetActiveCorner,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<'position' | 'rotation' | 'pitch'>('position');
 
   const radToDeg = (rad: number) => (rad * (180 / Math.PI)).toFixed(1);
   const degToRad = (deg: number) => deg * (Math.PI / 180);
+
+  const cornerLabels = [
+    { id: 'topLeft', label: 'Top Left', icon: '↖' },
+    { id: 'topRight', label: 'Top Right', icon: '↗' },
+    { id: 'bottomLeft', label: 'Bottom Left', icon: '↙' },
+    { id: 'bottomRight', label: 'Bottom Right', icon: '↘' },
+  ];
 
   return (
     <div className="glass-panel rounded-lg p-3 space-y-4">
@@ -259,69 +283,132 @@ export function CalibrationPanel({
       )}
 
       {/* Pitch Scale sliders */}
-      {activeTab === 'pitch' && onPitchScaleChange && (
+      {activeTab === 'pitch' && (
         <div className="space-y-3">
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <Label className="text-[10px] text-muted-foreground">
-                Width Scale
-                <span className="text-[8px] ml-1 opacity-60">stretch horizontal</span>
-              </Label>
-              <span className="text-[10px] font-mono text-muted-foreground">{(pitchScale.width * 100).toFixed(0)}%</span>
+          {/* Manual Corner Calibration */}
+          {onToggleCornerCalibrating && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <MousePointer2 className="h-3 w-3" />
+                  Manual Calibration
+                </Label>
+                <Button
+                  variant={isCornerCalibrating ? "default" : "outline"}
+                  size="sm"
+                  onClick={onToggleCornerCalibrating}
+                  className="h-6 text-[9px]"
+                >
+                  {isCornerCalibrating ? 'Done' : 'Start'}
+                </Button>
+              </div>
+              
+              {isCornerCalibrating && (
+                <div className="space-y-2 p-2 bg-muted/50 rounded-md">
+                  <p className="text-[9px] text-muted-foreground">
+                    Click corners below, then click on the video where each corner should be:
+                  </p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {cornerLabels.map((corner) => {
+                      const point = cornerPoints.find(p => p.id === corner.id);
+                      const isSet = point?.screenX !== undefined;
+                      const isActive = activeCorner === corner.id;
+                      return (
+                        <Button
+                          key={corner.id}
+                          variant={isActive ? "default" : isSet ? "secondary" : "outline"}
+                          size="sm"
+                          onClick={() => onSetActiveCorner?.(isActive ? null : corner.id)}
+                          className={`h-7 text-[9px] gap-1 ${isSet ? 'border-primary/50' : ''}`}
+                        >
+                          <span>{corner.icon}</span>
+                          <span className="truncate">{corner.label}</span>
+                          {isSet && <span className="text-primary">✓</span>}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      cornerLabels.forEach(c => onSetActiveCorner?.(null));
+                    }}
+                    className="w-full h-6 text-[9px] text-muted-foreground"
+                  >
+                    Clear All Points
+                  </Button>
+                </div>
+              )}
             </div>
-            <Slider
-              value={[pitchScale.width * 100]}
-              onValueChange={([v]) => onPitchScaleChange({ ...pitchScale, width: v / 100 })}
-              min={50}
-              max={200}
-              step={5}
-            />
-          </div>
+          )}
 
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <Label className="text-[10px] text-muted-foreground">
-                Height Scale
-                <span className="text-[8px] ml-1 opacity-60">stretch vertical</span>
-              </Label>
-              <span className="text-[10px] font-mono text-muted-foreground">{(pitchScale.height * 100).toFixed(0)}%</span>
-            </div>
-            <Slider
-              value={[pitchScale.height * 100]}
-              onValueChange={([v]) => onPitchScaleChange({ ...pitchScale, height: v / 100 })}
-              min={50}
-              max={200}
-              step={5}
-            />
-          </div>
+          {/* Scale sliders */}
+          {onPitchScaleChange && (
+            <>
+              <div className="space-y-1">
+                <div className="flex justify-between">
+                  <Label className="text-[10px] text-muted-foreground">
+                    Width Scale
+                    <span className="text-[8px] ml-1 opacity-60">stretch horizontal</span>
+                  </Label>
+                  <span className="text-[10px] font-mono text-muted-foreground">{(pitchScale.width * 100).toFixed(0)}%</span>
+                </div>
+                <Slider
+                  value={[pitchScale.width * 100]}
+                  onValueChange={([v]) => onPitchScaleChange({ ...pitchScale, width: v / 100 })}
+                  min={50}
+                  max={200}
+                  step={5}
+                />
+              </div>
 
-          {/* Quick presets */}
-          <div className="flex gap-1 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPitchScaleChange({ width: 1, height: 1 })}
-              className="flex-1 h-6 text-[9px]"
-            >
-              Reset
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPitchScaleChange({ width: 1.2, height: 1 })}
-              className="flex-1 h-6 text-[9px]"
-            >
-              Wide
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPitchScaleChange({ width: 1, height: 1.2 })}
-              className="flex-1 h-6 text-[9px]"
-            >
-              Tall
-            </Button>
-          </div>
+              <div className="space-y-1">
+                <div className="flex justify-between">
+                  <Label className="text-[10px] text-muted-foreground">
+                    Height Scale
+                    <span className="text-[8px] ml-1 opacity-60">stretch vertical</span>
+                  </Label>
+                  <span className="text-[10px] font-mono text-muted-foreground">{(pitchScale.height * 100).toFixed(0)}%</span>
+                </div>
+                <Slider
+                  value={[pitchScale.height * 100]}
+                  onValueChange={([v]) => onPitchScaleChange({ ...pitchScale, height: v / 100 })}
+                  min={50}
+                  max={200}
+                  step={5}
+                />
+              </div>
+
+              {/* Quick presets */}
+              <div className="flex gap-1 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPitchScaleChange({ width: 1, height: 1 })}
+                  className="flex-1 h-6 text-[9px]"
+                >
+                  Reset
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPitchScaleChange({ width: 1.2, height: 1 })}
+                  className="flex-1 h-6 text-[9px]"
+                >
+                  Wide
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPitchScaleChange({ width: 1, height: 1.2 })}
+                  className="flex-1 h-6 text-[9px]"
+                >
+                  Tall
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

@@ -11,7 +11,7 @@ import { ThreeCanvas } from '@/components/analysis/ThreeCanvas';
 import { TopBar } from '@/components/analysis/TopBar';
 import { BottomBar } from '@/components/analysis/BottomBar';
 import { ToolPanel } from '@/components/analysis/ToolPanel';
-import { CalibrationPanel } from '@/components/analysis/CalibrationPanel';
+import { CalibrationPanel, CornerCalibrationPoint } from '@/components/analysis/CalibrationPanel';
 import { AnnotationsList } from '@/components/analysis/AnnotationsList';
 import { ProjectsDialog } from '@/components/analysis/ProjectsDialog';
 import { toast } from 'sonner';
@@ -129,6 +129,14 @@ export default function Index() {
   const [zoneShape, setZoneShape] = useState<ZoneShape>('circle');
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [pitchScale, setPitchScale] = useState({ width: 1, height: 1 });
+  const [isCornerCalibrating, setIsCornerCalibrating] = useState(false);
+  const [activeCorner, setActiveCorner] = useState<string | null>(null);
+  const [cornerPoints, setCornerPoints] = useState<CornerCalibrationPoint[]>([
+    { id: 'topLeft', label: 'Top Left' },
+    { id: 'topRight', label: 'Top Right' },
+    { id: 'bottomLeft', label: 'Bottom Left' },
+    { id: 'bottomRight', label: 'Bottom Right' },
+  ]);
 
   // Detect formation from selected players
   const detectedFormation = useMemo(() => {
@@ -518,7 +526,32 @@ export default function Index() {
 
         {/* Video Canvas */}
         <main className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 canvas-container relative">
+          <div 
+            className="flex-1 canvas-container relative"
+            onClick={(e) => {
+              // Handle corner calibration clicks
+              if (isCornerCalibrating && activeCorner) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                setCornerPoints(prev => prev.map(p => 
+                  p.id === activeCorner ? { ...p, screenX: x, screenY: y } : p
+                ));
+                
+                // Move to next corner
+                const corners = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'];
+                const currentIdx = corners.indexOf(activeCorner);
+                const nextCorner = corners[(currentIdx + 1) % 4];
+                const nextPoint = cornerPoints.find(p => p.id === nextCorner);
+                if (nextPoint && nextPoint.screenX === undefined) {
+                  setActiveCorner(nextCorner);
+                } else {
+                  setActiveCorner(null);
+                }
+              }
+            }}
+          >
             <VideoCanvas
               ref={videoRef}
               src={videoSrc}
@@ -527,13 +560,43 @@ export default function Index() {
               calibration={calibration}
               annotations={annotations}
               toolMode={toolMode}
-              isInteractive={toolMode !== 'select' && toolMode !== 'pan' && !!videoSrc}
+              isInteractive={!isCornerCalibrating && toolMode !== 'select' && toolMode !== 'pan' && !!videoSrc}
               onPitchClick={handlePitchClick}
               pitchScale={pitchScale}
             />
             
+            {/* Corner calibration markers */}
+            {isCornerCalibrating && cornerPoints.map(point => (
+              point.screenX !== undefined && point.screenY !== undefined && (
+                <div
+                  key={point.id}
+                  className="absolute w-4 h-4 -ml-2 -mt-2 border-2 border-primary bg-primary/30 rounded-full animate-pulse cursor-pointer z-20"
+                  style={{ left: point.screenX, top: point.screenY }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveCorner(point.id);
+                  }}
+                >
+                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] text-primary font-bold whitespace-nowrap bg-background/80 px-1 rounded">
+                    {point.label}
+                  </span>
+                </div>
+              )
+            ))}
+            
+            {/* Corner calibration mode indicator */}
+            {isCornerCalibrating && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-full flex items-center gap-3 fade-in z-30">
+                <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
+                <span className="text-sm font-medium">Corner Calibration</span>
+                <span className="text-xs text-muted-foreground">
+                  {activeCorner ? `Click to place ${activeCorner}` : 'Select a corner'}
+                </span>
+              </div>
+            )}
+            
             {/* Tool mode indicator */}
-            {toolMode !== 'select' && toolMode !== 'pan' && videoSrc && (
+            {!isCornerCalibrating && toolMode !== 'select' && toolMode !== 'pan' && videoSrc && (
               <div className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-full flex items-center gap-3 fade-in">
                 <div 
                   className="w-3 h-3 rounded-full animate-pulse"
@@ -546,7 +609,7 @@ export default function Index() {
             )}
 
             {/* Player counter */}
-            {toolMode === 'player' && videoSrc && (
+            {!isCornerCalibrating && toolMode === 'player' && videoSrc && (
               <div className="absolute top-16 left-1/2 -translate-x-1/2 glass-panel px-3 py-1 rounded-full">
                 <span className="text-xs text-muted-foreground">Next: Player #{playerCounter}</span>
               </div>
@@ -585,6 +648,11 @@ export default function Index() {
             onApplyPreset={applyPreset}
             pitchScale={pitchScale}
             onPitchScaleChange={setPitchScale}
+            isCornerCalibrating={isCornerCalibrating}
+            onToggleCornerCalibrating={() => setIsCornerCalibrating(!isCornerCalibrating)}
+            cornerPoints={cornerPoints}
+            activeCorner={activeCorner}
+            onSetActiveCorner={setActiveCorner}
           />
         </aside>
       </div>
