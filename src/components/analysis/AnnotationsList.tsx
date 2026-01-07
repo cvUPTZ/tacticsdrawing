@@ -59,6 +59,8 @@ const TYPE_ICONS: Partial<Record<AnnotationType, typeof User>> = {
   grid: Grid3X3,
   ladder: Grid3X3,
   target_zone: Target,
+  // Trail
+  future_trail: Route,
 };
 
 // Need to import Triangle
@@ -102,6 +104,8 @@ const TYPE_LABELS: Record<AnnotationType, string> = {
   grid: 'Grid',
   ladder: 'Ladder',
   target_zone: 'Target Zone',
+  // Trail
+  future_trail: 'Future Trail',
 };
 
 export function AnnotationsList({

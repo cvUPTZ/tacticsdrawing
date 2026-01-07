@@ -2,12 +2,18 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { Annotation, CalibrationState, ToolMode, Vector3 } from '@/types/analysis';
 
+interface PitchScale {
+  width: number;
+  height: number;
+}
+
 interface ThreeCanvasProps {
   calibration: CalibrationState;
   annotations: Annotation[];
   toolMode: ToolMode;
   isInteractive: boolean;
   onPitchClick?: (position: Vector3) => void;
+  pitchScale?: PitchScale;
 }
 
 interface LabelData {
@@ -51,12 +57,14 @@ export function ThreeCanvas({
   toolMode,
   isInteractive,
   onPitchClick,
+  pitchScale = { width: 1, height: 1 },
 }: ThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const annotationGroupRef = useRef<THREE.Group | null>(null);
+  const pitchGroupRef = useRef<THREE.Group | null>(null);
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const pitchPlaneRef = useRef<THREE.Mesh | null>(null);
   const animationTimeRef = useRef(0);
@@ -91,12 +99,13 @@ export function ThreeCanvas({
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Football pitch (105m x 68m scaled down)
-    const pitchWidth = 105;
-    const pitchHeight = 68;
-    
-    // Pitch plane (invisible, for raycasting)
-    const pitchGeometry = new THREE.PlaneGeometry(pitchWidth, pitchHeight);
+    // Create pitch group (will be updated when pitchScale changes)
+    const pitchGroup = new THREE.Group();
+    scene.add(pitchGroup);
+    pitchGroupRef.current = pitchGroup;
+
+    // Base pitch plane for raycasting (large enough for any scale)
+    const pitchGeometry = new THREE.PlaneGeometry(200, 150);
     const pitchMaterial = new THREE.MeshBasicMaterial({ 
       color: 0x2d8a3e,
       transparent: true,
@@ -108,66 +117,6 @@ export function ThreeCanvas({
     pitchPlane.position.y = 0;
     scene.add(pitchPlane);
     pitchPlaneRef.current = pitchPlane;
-
-    // Pitch lines with subtle visibility
-    const linesMaterial = new THREE.LineBasicMaterial({ 
-      color: 0xffffff, 
-      transparent: true, 
-      opacity: 0.3,
-    });
-
-    // Draw pitch outline
-    const outlinePoints = [
-      new THREE.Vector3(-pitchWidth/2, 0.01, -pitchHeight/2),
-      new THREE.Vector3(pitchWidth/2, 0.01, -pitchHeight/2),
-      new THREE.Vector3(pitchWidth/2, 0.01, pitchHeight/2),
-      new THREE.Vector3(-pitchWidth/2, 0.01, pitchHeight/2),
-      new THREE.Vector3(-pitchWidth/2, 0.01, -pitchHeight/2),
-    ];
-    const outlineGeometry = new THREE.BufferGeometry().setFromPoints(outlinePoints);
-    const outlineLine = new THREE.Line(outlineGeometry, linesMaterial);
-    scene.add(outlineLine);
-
-    // Center line
-    const centerLinePoints = [
-      new THREE.Vector3(0, 0.01, -pitchHeight/2),
-      new THREE.Vector3(0, 0.01, pitchHeight/2),
-    ];
-    const centerLineGeometry = new THREE.BufferGeometry().setFromPoints(centerLinePoints);
-    const centerLine = new THREE.Line(centerLineGeometry, linesMaterial);
-    scene.add(centerLine);
-
-    // Center circle
-    const centerCircle = new THREE.RingGeometry(9, 9.1, 64);
-    const centerCircleMesh = new THREE.Mesh(
-      centerCircle,
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
-    );
-    centerCircleMesh.rotation.x = -Math.PI / 2;
-    centerCircleMesh.position.y = 0.01;
-    scene.add(centerCircleMesh);
-
-    // Penalty areas
-    const penaltyWidth = 40.3;
-    const penaltyDepth = 16.5;
-    
-    const leftPenaltyPoints = [
-      new THREE.Vector3(-pitchWidth/2, 0.01, -penaltyWidth/2),
-      new THREE.Vector3(-pitchWidth/2 + penaltyDepth, 0.01, -penaltyWidth/2),
-      new THREE.Vector3(-pitchWidth/2 + penaltyDepth, 0.01, penaltyWidth/2),
-      new THREE.Vector3(-pitchWidth/2, 0.01, penaltyWidth/2),
-    ];
-    const leftPenaltyGeometry = new THREE.BufferGeometry().setFromPoints(leftPenaltyPoints);
-    scene.add(new THREE.Line(leftPenaltyGeometry, linesMaterial));
-
-    const rightPenaltyPoints = [
-      new THREE.Vector3(pitchWidth/2, 0.01, -penaltyWidth/2),
-      new THREE.Vector3(pitchWidth/2 - penaltyDepth, 0.01, -penaltyWidth/2),
-      new THREE.Vector3(pitchWidth/2 - penaltyDepth, 0.01, penaltyWidth/2),
-      new THREE.Vector3(pitchWidth/2, 0.01, penaltyWidth/2),
-    ];
-    const rightPenaltyGeometry = new THREE.BufferGeometry().setFromPoints(rightPenaltyPoints);
-    scene.add(new THREE.Line(rightPenaltyGeometry, linesMaterial));
 
     // Annotation group
     const annotationGroup = new THREE.Group();
@@ -233,6 +182,29 @@ export function ThreeCanvas({
       container.removeChild(renderer.domElement);
     };
   }, []);
+
+  // Update pitch lines when scale changes
+  useEffect(() => {
+    const pitchGroup = pitchGroupRef.current;
+    if (!pitchGroup) return;
+    while (pitchGroup.children.length > 0) pitchGroup.remove(pitchGroup.children[0]);
+
+    const pw = 105 * pitchScale.width;
+    const ph = 68 * pitchScale.height;
+    const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+
+    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-pw/2, 0.01, -ph/2), new THREE.Vector3(pw/2, 0.01, -ph/2),
+      new THREE.Vector3(pw/2, 0.01, ph/2), new THREE.Vector3(-pw/2, 0.01, ph/2),
+      new THREE.Vector3(-pw/2, 0.01, -ph/2),
+    ]), mat));
+    pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0.01, -ph/2), new THREE.Vector3(0, 0.01, ph/2),
+    ]), mat));
+    const circle = new THREE.Mesh(new THREE.RingGeometry(9, 9.1, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }));
+    circle.rotation.x = -Math.PI / 2; circle.position.y = 0.01;
+    pitchGroup.add(circle);
+  }, [pitchScale]);
 
   // Update label positions from 3D to screen space
   const updateLabelPositions = useCallback(() => {
@@ -1170,8 +1142,132 @@ export function ThreeCanvas({
         group.add(arrowHead);
       }
 
-      // Other new types rendered as basic markers/zones
-      const basicZoneTypes = ['delivery_zone', 'target_zone', 'compact_block'];
+      // COMPACT BLOCK - Vertical rectangle (defensive block formation)
+      if (annotation.type === 'compact_block') {
+        const scale = annotation.scale || 1;
+        const rotation = annotation.rotation || 0;
+        const width = 6 * scale; // Narrower width
+        const height = 12 * scale; // Taller height (vertical)
+        
+        // Create a group for rotation
+        const blockGroup = new THREE.Group();
+        blockGroup.position.set(annotation.position.x, 0, annotation.position.z);
+        blockGroup.rotation.y = rotation;
+        
+        // Filled rectangle (vertical orientation - long on Z axis)
+        const rectShape = new THREE.Shape();
+        rectShape.moveTo(-width/2, -height/2);
+        rectShape.lineTo(width/2, -height/2);
+        rectShape.lineTo(width/2, height/2);
+        rectShape.lineTo(-width/2, height/2);
+        rectShape.closePath();
+        
+        const rectGeometry = new THREE.ShapeGeometry(rectShape);
+        const rectMaterial = new THREE.MeshBasicMaterial({ 
+          color, 
+          transparent: true, 
+          opacity: 0.35,
+          side: THREE.DoubleSide,
+        });
+        const rect = new THREE.Mesh(rectGeometry, rectMaterial);
+        rect.rotation.x = -Math.PI / 2;
+        rect.position.y = 0.02;
+        blockGroup.add(rect);
+        
+        // Border outline
+        const borderPoints = [
+          new THREE.Vector3(-width/2, 0.03, -height/2),
+          new THREE.Vector3(width/2, 0.03, -height/2),
+          new THREE.Vector3(width/2, 0.03, height/2),
+          new THREE.Vector3(-width/2, 0.03, height/2),
+          new THREE.Vector3(-width/2, 0.03, -height/2),
+        ];
+        const borderGeometry = new THREE.BufferGeometry().setFromPoints(borderPoints);
+        const borderMaterial = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8 });
+        const border = new THREE.Line(borderGeometry, borderMaterial);
+        blockGroup.add(border);
+        
+        // Inner lines to show block structure (player lines)
+        const lineCount = 3;
+        for (let i = 1; i < lineCount; i++) {
+          const zPos = -height/2 + (height / lineCount) * i;
+          const linePoints = [
+            new THREE.Vector3(-width/2, 0.04, zPos),
+            new THREE.Vector3(width/2, 0.04, zPos),
+          ];
+          const lineGeometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+          const lineMaterial = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 });
+          blockGroup.add(new THREE.Line(lineGeometry, lineMaterial));
+        }
+        
+        group.add(blockGroup);
+      }
+
+      // FUTURE TRAIL - Fading predicted movement path
+      if (annotation.type === 'future_trail' && annotation.points && annotation.points.length > 1) {
+        const points = annotation.points.map(p => new THREE.Vector3(p.x, 0.15, p.z));
+        
+        // Create segmented line with fading opacity
+        for (let i = 0; i < points.length - 1; i++) {
+          const segmentStart = points[i];
+          const segmentEnd = points[i + 1];
+          const progress = i / (points.length - 1);
+          const opacity = 0.9 - progress * 0.7; // Fade from 0.9 to 0.2
+          
+          // Dashed segment
+          const segmentGeometry = new THREE.BufferGeometry().setFromPoints([segmentStart, segmentEnd]);
+          const segmentMaterial = new THREE.LineDashedMaterial({
+            color,
+            dashSize: 0.8,
+            gapSize: 0.4,
+            transparent: true,
+            opacity,
+          });
+          const segment = new THREE.Line(segmentGeometry, segmentMaterial);
+          segment.computeLineDistances();
+          group.add(segment);
+        }
+        
+        // Add fading dots at each point
+        for (let i = 0; i < points.length; i++) {
+          const progress = i / (points.length - 1);
+          const opacity = 0.8 - progress * 0.6;
+          const size = 0.6 - progress * 0.3;
+          
+          const dotGeometry = new THREE.CircleGeometry(size, 16);
+          const dotMaterial = new THREE.MeshBasicMaterial({
+            color,
+            transparent: true,
+            opacity,
+            side: THREE.DoubleSide,
+          });
+          const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+          dot.rotation.x = -Math.PI / 2;
+          dot.position.copy(points[i]);
+          dot.position.y = 0.02;
+          group.add(dot);
+        }
+        
+        // Arrow at the end
+        if (points.length >= 2) {
+          const lastPoint = points[points.length - 1];
+          const prevPoint = points[points.length - 2];
+          const direction = new THREE.Vector3().subVectors(lastPoint, prevPoint).normalize();
+          
+          const arrowHead = new THREE.Mesh(
+            new THREE.ConeGeometry(0.4, 1.2, 6),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4 })
+          );
+          arrowHead.position.copy(lastPoint);
+          arrowHead.position.y = 0.15;
+          arrowHead.rotation.x = Math.PI / 2;
+          arrowHead.rotation.z = -Math.atan2(direction.x, direction.z);
+          group.add(arrowHead);
+        }
+      }
+
+      // Other zone types
+      const basicZoneTypes = ['delivery_zone', 'target_zone'];
       if (basicZoneTypes.includes(annotation.type)) {
         const radius = (annotation.radius || 8) * (annotation.scale || 1);
         const circleGeometry = new THREE.CircleGeometry(radius, 48);

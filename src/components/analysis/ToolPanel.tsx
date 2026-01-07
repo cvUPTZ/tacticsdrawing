@@ -109,6 +109,7 @@ const DRAWING_TOOLS: { id: ToolMode; icon: typeof Slash; label: string }[] = [
   { id: 'line', icon: Slash, label: 'Line' },
   { id: 'marker', icon: MapPin, label: 'Marker' },
   { id: 'curve', icon: Spline, label: 'Curve' },
+  { id: 'future_trail', icon: Footprints, label: 'Future Trail' },
 ];
 
 const ZONE_SHAPES: { id: ZoneShape; icon: typeof Circle; label: string }[] = [

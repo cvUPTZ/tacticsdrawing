@@ -14,7 +14,9 @@ export type AnnotationType =
   // Set-piece
   | 'wall' | 'run' | 'screen' | 'decoy' | 'delivery_zone'
   // Training
-  | 'cone' | 'gate' | 'grid' | 'ladder' | 'target_zone';
+  | 'cone' | 'gate' | 'grid' | 'ladder' | 'target_zone'
+  // Trail
+  | 'future_trail';
 
 export type ToolMode = 
   | 'select' | 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'pan' | 'offside' | 'pressing' | 'line' | 'marker' | 'curve' | 'shield' | 'distance'
@@ -25,7 +27,9 @@ export type ToolMode =
   // Set-piece
   | 'wall' | 'run' | 'screen' | 'decoy' | 'delivery_zone'
   // Training
-  | 'cone' | 'gate' | 'grid' | 'ladder' | 'target_zone';
+  | 'cone' | 'gate' | 'grid' | 'ladder' | 'target_zone'
+  // Trail
+  | 'future_trail';
 
 export type ZoneShape = 'circle' | 'rectangle' | 'triangle' | 'polygon';
 
