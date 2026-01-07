@@ -2,8 +2,9 @@ import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { CalibrationState } from '@/types/analysis';
-import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, CornerDownRight } from 'lucide-react';
+import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, Grid3X3, Wand2 } from 'lucide-react';
 import { useState } from 'react';
+import { GridOverlayType } from './ThreeCanvas';
 
 interface PitchScale {
   width: number;
@@ -31,6 +32,9 @@ interface CalibrationPanelProps {
   cornerPoints?: CornerCalibrationPoint[];
   activeCorner?: string | null;
   onSetActiveCorner?: (corner: string | null) => void;
+  onAutoCalibrate?: () => void;
+  gridOverlay?: GridOverlayType;
+  onGridOverlayChange?: (overlay: GridOverlayType) => void;
 }
 
 const PRESETS = [
@@ -54,6 +58,9 @@ export function CalibrationPanel({
   cornerPoints = [],
   activeCorner,
   onSetActiveCorner,
+  onAutoCalibrate,
+  gridOverlay = 'none',
+  onGridOverlayChange,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<'position' | 'rotation' | 'pitch'>('position');
 
@@ -328,6 +335,18 @@ export function CalibrationPanel({
                       );
                     })}
                   </div>
+                  {/* Auto-calibrate button */}
+                  {onAutoCalibrate && cornerPoints.filter(p => p.screenX !== undefined).length === 4 && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={onAutoCalibrate}
+                      className="w-full h-7 text-[9px] gap-1"
+                    >
+                      <Wand2 className="h-3 w-3" />
+                      Auto-Calibrate from Points
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -340,6 +359,29 @@ export function CalibrationPanel({
                   </Button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Grid Overlay */}
+          {onGridOverlayChange && (
+            <div className="space-y-2">
+              <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Grid3X3 className="h-3 w-3" />
+                Grid Overlay
+              </Label>
+              <div className="grid grid-cols-3 gap-1">
+                {(['none', 'thirds', 'halves', 'channels', 'zones'] as GridOverlayType[]).map((type) => (
+                  <Button
+                    key={type}
+                    variant={gridOverlay === type ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => onGridOverlayChange(type)}
+                    className="h-6 text-[9px] capitalize"
+                  >
+                    {type === 'none' ? 'Off' : type}
+                  </Button>
+                ))}
+              </div>
             </div>
           )}
 

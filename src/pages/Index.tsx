@@ -7,7 +7,7 @@ import { useCalibration } from '@/hooks/useCalibration';
 import { useProjects } from '@/hooks/useProjects';
 import { ToolMode, Vector3, ZoneShape, FormationInfo } from '@/types/analysis';
 import { VideoCanvas } from '@/components/analysis/VideoCanvas';
-import { ThreeCanvas } from '@/components/analysis/ThreeCanvas';
+import { ThreeCanvas, GridOverlayType } from '@/components/analysis/ThreeCanvas';
 import { TopBar } from '@/components/analysis/TopBar';
 import { BottomBar } from '@/components/analysis/BottomBar';
 import { ToolPanel } from '@/components/analysis/ToolPanel';
@@ -137,6 +137,62 @@ export default function Index() {
     { id: 'bottomLeft', label: 'Bottom Left' },
     { id: 'bottomRight', label: 'Bottom Right' },
   ]);
+  const [gridOverlay, setGridOverlay] = useState<GridOverlayType>('none');
+  const [draggingCorner, setDraggingCorner] = useState<string | null>(null);
+
+  // Auto-calibrate from corner points
+  const handleAutoCalibrate = useCallback(() => {
+    const allSet = cornerPoints.every(p => p.screenX !== undefined && p.screenY !== undefined);
+    if (!allSet) {
+      toast.error('Please set all 4 corner points first');
+      return;
+    }
+
+    const container = document.querySelector('.canvas-container');
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const containerW = rect.width;
+    const containerH = rect.height;
+
+    const tl = cornerPoints.find(p => p.id === 'topLeft')!;
+    const tr = cornerPoints.find(p => p.id === 'topRight')!;
+    const bl = cornerPoints.find(p => p.id === 'bottomLeft')!;
+    const br = cornerPoints.find(p => p.id === 'bottomRight')!;
+
+    const topWidth = (tr.screenX! - tl.screenX!) / containerW;
+    const bottomWidth = (br.screenX! - bl.screenX!) / containerW;
+    const leftHeight = (bl.screenY! - tl.screenY!) / containerH;
+    const rightHeight = (br.screenY! - tr.screenY!) / containerH;
+
+    const perspectiveRatio = topWidth / bottomWidth;
+    const estimatedHeight = 30 + (1 - perspectiveRatio) * 80;
+    const avgHeight = (leftHeight + rightHeight) / 2;
+    const estimatedZ = 40 + (1 - avgHeight) * 60;
+
+    const topCenter = (tl.screenX! + tr.screenX!) / 2 / containerW;
+    const bottomCenter = (bl.screenX! + br.screenX!) / 2 / containerW;
+    const horizontalOffset = (topCenter + bottomCenter) / 2 - 0.5;
+    const estimatedRotY = -horizontalOffset * 0.5;
+
+    const verticalCenter = ((tl.screenY! + tr.screenY!) / 2 + (bl.screenY! + br.screenY!) / 2) / 2 / containerH;
+    const estimatedRotX = -(verticalCenter - 0.3) * 1.2;
+
+    const avgWidth = (topWidth + bottomWidth) / 2;
+    const avgAspect = avgWidth / avgHeight;
+    const pitchAspect = 105 / 68;
+    const widthScale = Math.max(0.5, Math.min(2, avgAspect / pitchAspect));
+
+    updateCalibration({
+      cameraX: horizontalOffset * -50,
+      cameraY: estimatedHeight,
+      cameraZ: estimatedZ,
+      cameraRotationX: estimatedRotX,
+      cameraRotationY: estimatedRotY,
+    });
+
+    setPitchScale({ width: widthScale, height: 1 });
+    toast.success('Camera calibrated from corner points!');
+  }, [cornerPoints, updateCalibration]);
 
   // Detect formation from selected players
   const detectedFormation = useMemo(() => {
@@ -563,21 +619,54 @@ export default function Index() {
               isInteractive={!isCornerCalibrating && toolMode !== 'select' && toolMode !== 'pan' && !!videoSrc}
               onPitchClick={handlePitchClick}
               pitchScale={pitchScale}
+              gridOverlay={gridOverlay}
             />
             
-            {/* Corner calibration markers */}
+            {/* Corner calibration markers - draggable */}
             {isCornerCalibrating && cornerPoints.map(point => (
               point.screenX !== undefined && point.screenY !== undefined && (
                 <div
                   key={point.id}
-                  className="absolute w-4 h-4 -ml-2 -mt-2 border-2 border-primary bg-primary/30 rounded-full animate-pulse cursor-pointer z-20"
+                  className={`absolute w-5 h-5 -ml-2.5 -mt-2.5 border-2 rounded-full z-20 cursor-grab active:cursor-grabbing transition-all ${
+                    draggingCorner === point.id 
+                      ? 'border-accent bg-accent/50 scale-125' 
+                      : activeCorner === point.id 
+                        ? 'border-primary bg-primary/50 scale-110' 
+                        : 'border-primary bg-primary/30 hover:scale-110'
+                  }`}
                   style={{ left: point.screenX, top: point.screenY }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setActiveCorner(point.id);
                   }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setDraggingCorner(point.id);
+                    
+                    const handleMouseMove = (moveEvent: MouseEvent) => {
+                      const container = document.querySelector('.canvas-container');
+                      if (!container) return;
+                      const rect = container.getBoundingClientRect();
+                      const x = moveEvent.clientX - rect.left;
+                      const y = moveEvent.clientY - rect.top;
+                      
+                      setCornerPoints(prev => prev.map(p => 
+                        p.id === point.id ? { ...p, screenX: x, screenY: y } : p
+                      ));
+                    };
+                    
+                    const handleMouseUp = () => {
+                      setDraggingCorner(null);
+                      window.removeEventListener('mousemove', handleMouseMove);
+                      window.removeEventListener('mouseup', handleMouseUp);
+                    };
+                    
+                    window.addEventListener('mousemove', handleMouseMove);
+                    window.addEventListener('mouseup', handleMouseUp);
+                  }}
                 >
-                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] text-primary font-bold whitespace-nowrap bg-background/80 px-1 rounded">
+                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] text-primary font-bold whitespace-nowrap bg-background/80 px-1 rounded pointer-events-none">
                     {point.label}
                   </span>
                 </div>
@@ -653,6 +742,9 @@ export default function Index() {
             cornerPoints={cornerPoints}
             activeCorner={activeCorner}
             onSetActiveCorner={setActiveCorner}
+            onAutoCalibrate={handleAutoCalibrate}
+            gridOverlay={gridOverlay}
+            onGridOverlayChange={setGridOverlay}
           />
         </aside>
       </div>
