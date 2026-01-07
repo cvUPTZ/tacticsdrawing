@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useVideoPlayer } from '@/hooks/useVideoPlayer';
 import { useAnnotations } from '@/hooks/useAnnotations';
 import { useCalibration } from '@/hooks/useCalibration';
 import { useProjects } from '@/hooks/useProjects';
-import { ToolMode, Vector3 } from '@/types/analysis';
+import { ToolMode, Vector3, ZoneShape, FormationInfo } from '@/types/analysis';
 import { VideoCanvas } from '@/components/analysis/VideoCanvas';
 import { ThreeCanvas } from '@/components/analysis/ThreeCanvas';
 import { TopBar } from '@/components/analysis/TopBar';
@@ -15,6 +15,54 @@ import { CalibrationPanel } from '@/components/analysis/CalibrationPanel';
 import { AnnotationsList } from '@/components/analysis/AnnotationsList';
 import { ProjectsDialog } from '@/components/analysis/ProjectsDialog';
 import { toast } from 'sonner';
+
+// Formation detection utility
+function detectFormation(players: { x: number; z: number }[]): FormationInfo | null {
+  if (players.length < 3) return null;
+  
+  // Sort players by x position (left to right / defense to attack)
+  const sorted = [...players].sort((a, b) => a.x - b.x);
+  
+  // Determine zones based on x position
+  const halfX = 52.5; // Half pitch
+  const zones = {
+    defense: sorted.filter(p => p.x < -15),
+    midfield: sorted.filter(p => p.x >= -15 && p.x <= 15),
+    attack: sorted.filter(p => p.x > 15),
+  };
+  
+  const pattern = `${zones.defense.length}-${zones.midfield.length}-${zones.attack.length}`;
+  
+  const formations: Record<string, string> = {
+    '4-3-3': '4-3-3',
+    '4-4-2': '4-4-2',
+    '3-5-2': '3-5-2',
+    '4-2-3-1': '4-2-3-1',
+    '3-4-3': '3-4-3',
+    '5-3-2': '5-3-2',
+    '4-1-4-1': '4-1-4-1',
+  };
+  
+  // Find closest matching formation
+  let bestMatch = pattern;
+  let confidence = 0.5;
+  
+  for (const [key, name] of Object.entries(formations)) {
+    const parts = key.split('-').map(Number);
+    const total = parts.reduce((a, b) => a + b, 0);
+    if (total === players.length) {
+      bestMatch = name;
+      confidence = 0.85;
+      break;
+    }
+  }
+  
+  return {
+    name: bestMatch,
+    pattern,
+    confidence,
+  };
+}
 
 export default function Index() {
   const navigate = useNavigate();
@@ -76,6 +124,19 @@ export default function Index() {
   const [isDrawingFreehand, setIsDrawingFreehand] = useState(false);
   const [isDashed, setIsDashed] = useState(false);
   const [playerCounter, setPlayerCounter] = useState(1);
+  const [zoneShape, setZoneShape] = useState<ZoneShape>('circle');
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+
+  // Detect formation from selected players
+  const detectedFormation = useMemo(() => {
+    if (selectedPlayerIds.length < 3) return null;
+    
+    const selectedPlayers = annotations
+      .filter(a => a.type === 'player' && selectedPlayerIds.includes(a.id))
+      .map(a => ({ x: a.position.x, z: a.position.z }));
+    
+    return detectFormation(selectedPlayers);
+  }, [selectedPlayerIds, annotations]);
 
   // Redirect to auth if not authenticated
   useEffect(() => {
@@ -214,10 +275,13 @@ export default function Index() {
         setFreehandPoints(prev => [...prev, position]);
       }
     } else if (toolMode === 'zone') {
-      addAnnotation('zone', position, {
+      const newAnnotation = addAnnotation('zone', position, {
         radius: 8,
         timestampStart: videoState.currentTime,
       });
+      if (newAnnotation) {
+        updateAnnotation(newAnnotation.id, { zoneShape });
+      }
     } else if (toolMode === 'spotlight') {
       const spotlightNumber = annotations.filter(a => a.type === 'spotlight').length + 1;
       addAnnotation('spotlight', position, {
@@ -235,8 +299,61 @@ export default function Index() {
         });
         setArrowStartPosition(null);
       }
+    } else if (toolMode === 'pressing') {
+      // Find the nearest player to create a press visualization around
+      const playerAnnotations = annotations.filter(a => a.type === 'player');
+      if (playerAnnotations.length === 0) {
+        toast.error('Place player markers first', { duration: 2000 });
+        return;
+      }
+      
+      // Find closest player
+      let closestPlayer = playerAnnotations[0];
+      let closestDist = Infinity;
+      for (const player of playerAnnotations) {
+        const dist = Math.sqrt(
+          Math.pow(player.position.x - position.x, 2) + 
+          Math.pow(player.position.z - position.z, 2)
+        );
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestPlayer = player;
+        }
+      }
+      
+      addAnnotation('pressing', position, {
+        timestampStart: videoState.currentTime,
+        radius: 5,
+      });
+      updateAnnotation(closestPlayer.id, { metadata: { ...closestPlayer.metadata, isPressing: true } });
+    } else if (toolMode === 'select') {
+      // Multi-select players with shift key (detected via metadata in callback)
+      const playerAnnotations = annotations.filter(a => a.type === 'player');
+      let clickedPlayer = null;
+      
+      for (const player of playerAnnotations) {
+        const dist = Math.sqrt(
+          Math.pow(player.position.x - position.x, 2) + 
+          Math.pow(player.position.z - position.z, 2)
+        );
+        if (dist < 3) {
+          clickedPlayer = player;
+          break;
+        }
+      }
+      
+      if (clickedPlayer) {
+        setSelectedPlayerIds(prev => {
+          if (prev.includes(clickedPlayer!.id)) {
+            return prev.filter(id => id !== clickedPlayer!.id);
+          }
+          return [...prev, clickedPlayer!.id];
+        });
+      } else {
+        setSelectedPlayerIds([]);
+      }
     }
-  }, [toolMode, arrowStartPosition, addAnnotation, videoState.currentTime, isDrawingFreehand, isDashed, updateAnnotation, playerCounter, annotations]);
+  }, [toolMode, arrowStartPosition, addAnnotation, videoState.currentTime, isDrawingFreehand, isDashed, updateAnnotation, playerCounter, annotations, zoneShape]);
 
   // Finalize freehand when tool changes
   useEffect(() => {
@@ -317,9 +434,11 @@ export default function Index() {
       case 'player': return 'Click to place player marker';
       case 'arrow': return arrowStartPosition ? 'Click end point' : 'Click start point';
       case 'freehand': return isDrawingFreehand ? `${freehandPoints.length} points (Esc to finish)` : 'Click to start path';
-      case 'zone': return 'Click to place zone';
+      case 'zone': return `Click to place ${zoneShape} zone`;
       case 'spotlight': return 'Click to place spotlight';
       case 'offside': return arrowStartPosition ? 'Click end point' : 'Click start point';
+      case 'pressing': return 'Click near a player to add press';
+      case 'select': return selectedPlayerIds.length > 0 ? `${selectedPlayerIds.length} selected` : 'Click players to select';
       default: return '';
     }
   };
@@ -344,9 +463,11 @@ export default function Index() {
             currentTool={toolMode}
             currentColor={currentColor}
             isDashed={isDashed}
+            zoneShape={zoneShape}
             onToolChange={setToolMode}
             onColorChange={setCurrentColor}
             onDashedChange={setIsDashed}
+            onZoneShapeChange={setZoneShape}
             onClearAnnotations={clearAnnotations}
             onExport={handleExport}
             onSave={handleSave}
@@ -393,6 +514,26 @@ export default function Index() {
             {toolMode === 'player' && videoSrc && (
               <div className="absolute top-16 left-1/2 -translate-x-1/2 glass-panel px-3 py-1 rounded-full">
                 <span className="text-xs text-muted-foreground">Next: Player #{playerCounter}</span>
+              </div>
+            )}
+
+            {/* Formation detection indicator */}
+            {detectedFormation && selectedPlayerIds.length >= 3 && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-lg flex items-center gap-3 fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Formation:</span>
+                  <span className="text-sm font-bold text-primary">{detectedFormation.name}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  ({selectedPlayerIds.length} players)
+                </div>
+                <div 
+                  className="w-2 h-2 rounded-full"
+                  style={{ 
+                    backgroundColor: detectedFormation.confidence > 0.7 ? '#00ff88' : '#ffaa00'
+                  }}
+                  title={`${Math.round(detectedFormation.confidence * 100)}% confidence`}
+                />
               </div>
             )}
           </div>

@@ -1,8 +1,16 @@
 // Core types for the video analysis platform
 
-export type AnnotationType = 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'offside';
+export type AnnotationType = 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'offside' | 'pressing';
 
-export type ToolMode = 'select' | 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'pan' | 'offside';
+export type ToolMode = 'select' | 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'pan' | 'offside' | 'pressing';
+
+export type ZoneShape = 'circle' | 'rectangle' | 'triangle' | 'polygon';
+
+export interface FormationInfo {
+  name: string;
+  pattern: string;
+  confidence: number;
+}
 
 export interface Vector3 {
   x: number;
@@ -28,6 +36,8 @@ export interface Annotation {
   visible: boolean;
   createdAt: string;
   updatedAt: string;
+  zoneShape?: ZoneShape;
+  targetPlayerId?: string; // For pressing - links to player annotation
 }
 
 export interface Calibration {
