@@ -5,6 +5,7 @@ import { useVideoPlayer } from '@/hooks/useVideoPlayer';
 import { useAnnotations } from '@/hooks/useAnnotations';
 import { useCalibration } from '@/hooks/useCalibration';
 import { useProjects } from '@/hooks/useProjects';
+import { useCalibrationPresets } from '@/hooks/useCalibrationPresets';
 import { ToolMode, Vector3, ZoneShape, FormationInfo } from '@/types/analysis';
 import { VideoCanvas } from '@/components/analysis/VideoCanvas';
 import { ThreeCanvas, GridOverlayType } from '@/components/analysis/ThreeCanvas';
@@ -14,6 +15,7 @@ import { ToolPanel } from '@/components/analysis/ToolPanel';
 import { CalibrationPanel, CornerCalibrationPoint } from '@/components/analysis/CalibrationPanel';
 import { AnnotationsList } from '@/components/analysis/AnnotationsList';
 import { ProjectsDialog } from '@/components/analysis/ProjectsDialog';
+import { HeatmapType } from '@/components/analysis/HeatmapOverlay';
 import { toast } from 'sonner';
 
 // Formation detection utility
@@ -118,6 +120,12 @@ export default function Index() {
     loadAnnotations,
   } = useProjects();
 
+  const {
+    presets: customPresets,
+    addPreset,
+    deletePreset: deleteCustomPreset,
+  } = useCalibrationPresets();
+
   const [toolMode, setToolMode] = useState<ToolMode>('select');
   const [projectName, setProjectName] = useState('Untitled Analysis');
   const [projectsDialogOpen, setProjectsDialogOpen] = useState(false);
@@ -139,6 +147,7 @@ export default function Index() {
   ]);
   const [gridOverlay, setGridOverlay] = useState<GridOverlayType>('none');
   const [draggingCorner, setDraggingCorner] = useState<string | null>(null);
+  const [heatmapType, setHeatmapType] = useState<HeatmapType>('none');
 
   // Auto-calibrate from corner points
   const handleAutoCalibrate = useCallback(() => {
@@ -620,6 +629,7 @@ export default function Index() {
               onPitchClick={handlePitchClick}
               pitchScale={pitchScale}
               gridOverlay={gridOverlay}
+              heatmapType={heatmapType}
             />
             
             {/* Corner calibration markers - draggable */}
@@ -745,6 +755,22 @@ export default function Index() {
             onAutoCalibrate={handleAutoCalibrate}
             gridOverlay={gridOverlay}
             onGridOverlayChange={setGridOverlay}
+            customPresets={customPresets}
+            onSavePreset={(name) => {
+              addPreset(name, calibration, pitchScale);
+              toast.success(`Saved preset: ${name}`);
+            }}
+            onLoadPreset={(preset) => {
+              updateCalibration(preset.calibration);
+              setPitchScale(preset.pitchScale);
+              toast.success(`Loaded preset: ${preset.name}`);
+            }}
+            onDeletePreset={(id) => {
+              deleteCustomPreset(id);
+              toast.success('Preset deleted');
+            }}
+            heatmapType={heatmapType}
+            onHeatmapChange={setHeatmapType}
           />
         </aside>
       </div>
