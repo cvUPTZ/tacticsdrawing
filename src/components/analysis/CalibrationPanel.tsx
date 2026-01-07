@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { GridOverlayType } from './ThreeCanvas';
 import { HeatmapType } from './HeatmapOverlay';
 import { CalibrationPreset } from '@/hooks/useCalibrationPresets';
+import { PointCalibration, CalibrationPoint } from './PointCalibration';
 
 interface PitchScale {
   width: number;
@@ -46,6 +47,16 @@ interface CalibrationPanelProps {
   // Heatmap
   heatmapType?: HeatmapType;
   onHeatmapChange?: (type: HeatmapType) => void;
+  // Point calibration
+  isPointCalibrating?: boolean;
+  onTogglePointCalibrating?: () => void;
+  calibrationPoints?: CalibrationPoint[];
+  activeCalibrationPointId?: string | null;
+  onSetActiveCalibrationPoint?: (id: string | null) => void;
+  onAddCalibrationPoint?: (point: CalibrationPoint) => void;
+  onRemoveCalibrationPoint?: (id: string) => void;
+  onClearCalibrationPoints?: () => void;
+  onPointAutoCalibrate?: () => void;
 }
 
 const PRESETS = [
@@ -78,6 +89,15 @@ export function CalibrationPanel({
   onDeletePreset,
   heatmapType = 'none',
   onHeatmapChange,
+  isPointCalibrating = false,
+  onTogglePointCalibrating,
+  calibrationPoints = [],
+  activeCalibrationPointId,
+  onSetActiveCalibrationPoint,
+  onAddCalibrationPoint,
+  onRemoveCalibrationPoint,
+  onClearCalibrationPoints,
+  onPointAutoCalibrate,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<'position' | 'rotation' | 'pitch'>('position');
   const [newPresetName, setNewPresetName] = useState('');
@@ -363,6 +383,19 @@ export function CalibrationPanel({
       )}
 
       {/* Pitch Scale sliders */}
+      {activeTab === 'pitch' && onTogglePointCalibrating && (
+        <PointCalibration
+          isActive={isPointCalibrating}
+          onToggle={onTogglePointCalibrating}
+          points={calibrationPoints}
+          activePointId={activeCalibrationPointId || null}
+          onSetActivePoint={onSetActiveCalibrationPoint || (() => {})}
+          onAddPoint={onAddCalibrationPoint || (() => {})}
+          onRemovePoint={onRemoveCalibrationPoint || (() => {})}
+          onClearPoints={onClearCalibrationPoints || (() => {})}
+          onAutoCalibrate={onPointAutoCalibrate || (() => {})}
+        />
+      )}
       {activeTab === 'pitch' && (
         <div className="space-y-3">
           {/* Manual Corner Calibration */}
