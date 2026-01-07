@@ -221,7 +221,8 @@ export default function Index() {
 
   const finalizeFreehand = useCallback(() => {
     if (isDrawingFreehand && freehandPoints.length > 1) {
-      const annotation = addAnnotation('freehand', freehandPoints[0], {
+      const annotationType = toolMode === 'curve' ? 'curve' : 'freehand';
+      const annotation = addAnnotation(annotationType, freehandPoints[0], {
         timestampStart: videoState.currentTime,
         points: freehandPoints,
       });
@@ -231,7 +232,7 @@ export default function Index() {
     }
     setIsDrawingFreehand(false);
     setFreehandPoints([]);
-  }, [isDrawingFreehand, freehandPoints, addAnnotation, videoState.currentTime, isDashed, updateAnnotation]);
+  }, [isDrawingFreehand, freehandPoints, addAnnotation, videoState.currentTime, isDashed, updateAnnotation, toolMode]);
 
   const handleUpload = useCallback((file: File) => {
     loadVideo(file);
@@ -285,7 +286,7 @@ export default function Index() {
     } else if (toolMode === 'spotlight') {
       const spotlightNumber = annotations.filter(a => a.type === 'spotlight').length + 1;
       addAnnotation('spotlight', position, {
-        label: `Player ${spotlightNumber}`,
+        label: `Spotlight ${spotlightNumber}`,
         timestampStart: videoState.currentTime,
       });
     } else if (toolMode === 'offside') {
@@ -300,34 +301,59 @@ export default function Index() {
         setArrowStartPosition(null);
       }
     } else if (toolMode === 'pressing') {
-      // Find the nearest player to create a press visualization around
-      const playerAnnotations = annotations.filter(a => a.type === 'player');
-      if (playerAnnotations.length === 0) {
-        toast.error('Place player markers first', { duration: 2000 });
-        return;
-      }
-      
-      // Find closest player
-      let closestPlayer = playerAnnotations[0];
-      let closestDist = Infinity;
-      for (const player of playerAnnotations) {
-        const dist = Math.sqrt(
-          Math.pow(player.position.x - position.x, 2) + 
-          Math.pow(player.position.z - position.z, 2)
-        );
-        if (dist < closestDist) {
-          closestDist = dist;
-          closestPlayer = player;
-        }
-      }
-      
       addAnnotation('pressing', position, {
         timestampStart: videoState.currentTime,
         radius: 5,
       });
-      updateAnnotation(closestPlayer.id, { metadata: { ...closestPlayer.metadata, isPressing: true } });
+    } else if (toolMode === 'line') {
+      // Straight line tool
+      if (!arrowStartPosition) {
+        setArrowStartPosition(position);
+        toast.info('Click to set line end point', { duration: 2000 });
+      } else {
+        const annotation = addAnnotation('line', arrowStartPosition, {
+          endPosition: position,
+          timestampStart: videoState.currentTime,
+        });
+        if (annotation && isDashed) {
+          updateAnnotation(annotation.id, { metadata: { dashed: true } });
+        }
+        setArrowStartPosition(null);
+      }
+    } else if (toolMode === 'marker') {
+      // Simple marker/dot
+      addAnnotation('marker', position, {
+        timestampStart: videoState.currentTime,
+      });
+    } else if (toolMode === 'curve') {
+      // Curved line (uses freehand points but renders as smooth curve)
+      if (!isDrawingFreehand) {
+        setIsDrawingFreehand(true);
+        setFreehandPoints([position]);
+        toast.info('Click to add curve points. Press Escape to finish.', { duration: 3000 });
+      } else {
+        setFreehandPoints(prev => [...prev, position]);
+      }
+    } else if (toolMode === 'shield') {
+      // Defensive block shape
+      addAnnotation('shield', position, {
+        timestampStart: videoState.currentTime,
+        radius: 4,
+      });
+    } else if (toolMode === 'distance') {
+      // Distance measurement line
+      if (!arrowStartPosition) {
+        setArrowStartPosition(position);
+        toast.info('Click to set measurement end point', { duration: 2000 });
+      } else {
+        addAnnotation('distance', arrowStartPosition, {
+          endPosition: position,
+          timestampStart: videoState.currentTime,
+        });
+        setArrowStartPosition(null);
+      }
     } else if (toolMode === 'select') {
-      // Multi-select players with shift key (detected via metadata in callback)
+      // Multi-select players
       const playerAnnotations = annotations.filter(a => a.type === 'player');
       let clickedPlayer = null;
       
@@ -355,9 +381,9 @@ export default function Index() {
     }
   }, [toolMode, arrowStartPosition, addAnnotation, videoState.currentTime, isDrawingFreehand, isDashed, updateAnnotation, playerCounter, annotations, zoneShape]);
 
-  // Finalize freehand when tool changes
+  // Finalize freehand/curve when tool changes
   useEffect(() => {
-    if (toolMode !== 'freehand') {
+    if (toolMode !== 'freehand' && toolMode !== 'curve') {
       finalizeFreehand();
     }
   }, [toolMode, finalizeFreehand]);
@@ -437,7 +463,12 @@ export default function Index() {
       case 'zone': return `Click to place ${zoneShape} zone`;
       case 'spotlight': return 'Click to place spotlight';
       case 'offside': return arrowStartPosition ? 'Click end point' : 'Click start point';
-      case 'pressing': return 'Click near a player to add press';
+      case 'pressing': return 'Click to add press indicator';
+      case 'line': return arrowStartPosition ? 'Click end point' : 'Click start point';
+      case 'marker': return 'Click to place marker';
+      case 'curve': return isDrawingFreehand ? `${freehandPoints.length} points (Esc to finish)` : 'Click to start curve';
+      case 'shield': return 'Click to place defensive block';
+      case 'distance': return arrowStartPosition ? 'Click end point' : 'Click start point for measurement';
       case 'select': return selectedPlayerIds.length > 0 ? `${selectedPlayerIds.length} selected` : 'Click players to select';
       default: return '';
     }

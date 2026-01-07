@@ -180,13 +180,23 @@ export function ThreeCanvas({
       
       // Animate objects
       annotationGroup.children.forEach(child => {
-        // Spotlight base ring - starts fast, decelerates (easing out)
+        // Spotlight dashed ring - rotating with pulse
         if ((child as any).isSpotlightRing) {
           const startTime = (child as any).spotlightStartTime || 0;
           const elapsed = animationTimeRef.current - startTime;
           // Deceleration: speed decreases over time (fast start, slow end)
-          const speed = Math.max(0.02, 0.5 * Math.exp(-elapsed * 0.3));
-          child.rotation.z += speed;
+          const speed = Math.max(0.01, 0.4 * Math.exp(-elapsed * 0.25));
+          child.rotation.y += speed;
+          
+          // Pulse effect on scale
+          const pulse = 1 + Math.sin(animationTimeRef.current * 3) * 0.08;
+          child.scale.set(pulse, 1, pulse);
+          
+          // Pulse opacity
+          const mat = (child as THREE.Line).material;
+          if (mat && 'opacity' in mat) {
+            (mat as THREE.LineBasicMaterial).opacity = 0.6 + Math.sin(animationTimeRef.current * 4) * 0.3;
+          }
         }
         if ((child as any).isPressing) {
           const pulseScale = 1 + Math.sin(animationTimeRef.current * 4) * 0.15;
@@ -542,29 +552,29 @@ export function ThreeCanvas({
         }
       }
 
-      // SPOTLIGHT - Column with rotating base ellipse outline
+      // SPOTLIGHT - Column with rotating dashed ring and pulse
       if (annotation.type === 'spotlight') {
-        const columnHeight = 12;
-        const columnRadius = 3;
+        const columnHeight = 10;
+        const columnRadius = 3.5;
         
         // Vertical transparent column
-        const columnGeometry = new THREE.CylinderGeometry(columnRadius, columnRadius * 1.2, columnHeight, 32, 1, true);
+        const columnGeometry = new THREE.CylinderGeometry(columnRadius * 0.8, columnRadius, columnHeight, 32, 1, true);
         const columnMaterial = new THREE.MeshBasicMaterial({ 
           color, 
           transparent: true, 
-          opacity: 0.12,
+          opacity: 0.1,
           side: THREE.DoubleSide,
         });
         const column = new THREE.Mesh(columnGeometry, columnMaterial);
         column.position.set(annotation.position.x, columnHeight / 2, annotation.position.z);
         group.add(column);
 
-        // Ground fill
-        const groundGeometry = new THREE.CircleGeometry(columnRadius * 1.2, 32);
+        // Ground fill with glow
+        const groundGeometry = new THREE.CircleGeometry(columnRadius, 32);
         const groundMaterial = new THREE.MeshBasicMaterial({ 
           color, 
           transparent: true, 
-          opacity: 0.25,
+          opacity: 0.3,
           side: THREE.DoubleSide,
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -572,48 +582,51 @@ export function ThreeCanvas({
         ground.position.set(annotation.position.x, 0.02, annotation.position.z);
         group.add(ground);
 
-        // ANIMATED ROTATING BASE ELLIPSE OUTLINE
-        // Create ellipse curve for the outline
-        const ellipsePoints: THREE.Vector3[] = [];
-        const segments = 64;
-        const ellipseRadiusX = columnRadius * 1.3;
-        const ellipseRadiusZ = columnRadius * 0.8; // Ellipse shape
-        for (let i = 0; i <= segments; i++) {
-          const angle = (i / segments) * Math.PI * 2;
-          ellipsePoints.push(new THREE.Vector3(
-            Math.cos(angle) * ellipseRadiusX,
-            0,
-            Math.sin(angle) * ellipseRadiusZ
-          ));
-        }
+        // ROTATING DASHED CIRCLE at base
+        const dashCount = 12;
+        const dashAngle = (Math.PI * 2) / dashCount;
+        const dashLength = dashAngle * 0.6;
         
-        const ellipseGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
-        const ellipseMaterial = new THREE.LineBasicMaterial({ 
-          color, 
-          transparent: true, 
-          opacity: 0.9,
-          linewidth: 2,
-        });
-        const ellipseOutline = new THREE.Line(ellipseGeometry, ellipseMaterial);
-        ellipseOutline.position.set(annotation.position.x, 0.05, annotation.position.z);
-        (ellipseOutline as any).isSpotlightRing = true;
-        (ellipseOutline as any).spotlightStartTime = animationTimeRef.current;
-        group.add(ellipseOutline);
+        for (let i = 0; i < dashCount; i++) {
+          const startAngle = i * dashAngle;
+          const endAngle = startAngle + dashLength;
+          
+          const arcPoints: THREE.Vector3[] = [];
+          const arcSegments = 8;
+          for (let j = 0; j <= arcSegments; j++) {
+            const angle = startAngle + (endAngle - startAngle) * (j / arcSegments);
+            arcPoints.push(new THREE.Vector3(
+              Math.cos(angle) * columnRadius * 1.1,
+              0,
+              Math.sin(angle) * columnRadius * 1.1
+            ));
+          }
+          
+          const arcGeometry = new THREE.BufferGeometry().setFromPoints(arcPoints);
+          const arcMaterial = new THREE.LineBasicMaterial({ 
+            color, 
+            transparent: true, 
+            opacity: 0.9,
+          });
+          const arc = new THREE.Line(arcGeometry, arcMaterial);
+          arc.position.set(annotation.position.x, 0.05, annotation.position.z);
+          (arc as any).isSpotlightRing = true;
+          (arc as any).spotlightStartTime = animationTimeRef.current;
+          group.add(arc);
+        }
 
-        // Second ellipse (slightly larger, offset rotation)
-        const ellipse2Geometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
-        const ellipse2Material = new THREE.LineBasicMaterial({ 
+        // Inner solid ring
+        const innerRingGeometry = new THREE.RingGeometry(columnRadius * 0.85, columnRadius * 0.9, 32);
+        const innerRingMaterial = new THREE.MeshBasicMaterial({ 
           color, 
           transparent: true, 
           opacity: 0.5,
+          side: THREE.DoubleSide,
         });
-        const ellipse2 = new THREE.Line(ellipse2Geometry, ellipse2Material);
-        ellipse2.position.set(annotation.position.x, 0.04, annotation.position.z);
-        ellipse2.scale.set(1.15, 1, 1.15);
-        ellipse2.rotation.z = Math.PI / 4; // Offset rotation
-        (ellipse2 as any).isSpotlightRing = true;
-        (ellipse2 as any).spotlightStartTime = animationTimeRef.current + 0.5; // Slight delay
-        group.add(ellipse2);
+        const innerRing = new THREE.Mesh(innerRingGeometry, innerRingMaterial);
+        innerRing.rotation.x = -Math.PI / 2;
+        innerRing.position.set(annotation.position.x, 0.03, annotation.position.z);
+        group.add(innerRing);
       }
 
       // OFFSIDE LINE - Dashed horizontal line
@@ -701,6 +714,171 @@ export function ThreeCanvas({
           head.rotation.z = -angle - Math.PI / 2;
           group.add(head);
         }
+      }
+
+      // LINE - Simple straight line
+      if (annotation.type === 'line' && annotation.endPosition) {
+        const startVec = new THREE.Vector3(annotation.position.x, 0.2, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.2, annotation.endPosition.z);
+        
+        if (isDashed) {
+          const lineGeometry = new THREE.BufferGeometry().setFromPoints([startVec, endVec]);
+          const dashedMaterial = createDashedLineMaterial(color, 1.5, 1);
+          const dashedLine = new THREE.Line(lineGeometry, dashedMaterial);
+          dashedLine.computeLineDistances();
+          group.add(dashedLine);
+        } else {
+          // Solid tube line
+          const lineCurve = new THREE.LineCurve3(startVec, endVec);
+          const tubeGeometry = new THREE.TubeGeometry(lineCurve, 8, 0.2, 8, false);
+          const tubeMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
+          const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+          group.add(tube);
+        }
+      }
+
+      // MARKER - Simple dot/pin marker
+      if (annotation.type === 'marker') {
+        // Outer glow
+        const glowGeometry = new THREE.CircleGeometry(1.8, 24);
+        const glowMaterial = new THREE.MeshBasicMaterial({ 
+          color, 
+          transparent: true, 
+          opacity: 0.3,
+          side: THREE.DoubleSide,
+        });
+        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        glow.rotation.x = -Math.PI / 2;
+        glow.position.set(annotation.position.x, 0.01, annotation.position.z);
+        group.add(glow);
+
+        // Inner dot
+        const dotGeometry = new THREE.CircleGeometry(0.8, 24);
+        const dotMaterial = new THREE.MeshBasicMaterial({ 
+          color, 
+          transparent: true, 
+          opacity: 0.95,
+          side: THREE.DoubleSide,
+        });
+        const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+        dot.rotation.x = -Math.PI / 2;
+        dot.position.set(annotation.position.x, 0.02, annotation.position.z);
+        group.add(dot);
+
+        // Vertical pin
+        const pinGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2, 8);
+        const pinMaterial = new THREE.MeshBasicMaterial({ color });
+        const pin = new THREE.Mesh(pinGeometry, pinMaterial);
+        pin.position.set(annotation.position.x, 1, annotation.position.z);
+        group.add(pin);
+
+        // Pin head
+        const headGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+        const headMaterial = new THREE.MeshBasicMaterial({ color });
+        const head = new THREE.Mesh(headGeometry, headMaterial);
+        head.position.set(annotation.position.x, 2.2, annotation.position.z);
+        group.add(head);
+      }
+
+      // CURVE - Smooth curved line (like freehand but different visual)
+      if (annotation.type === 'curve' && annotation.points && annotation.points.length > 1) {
+        const points = annotation.points.map(p => new THREE.Vector3(p.x, 0.25, p.z));
+        const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.5);
+        
+        const tubeGeometry = new THREE.TubeGeometry(curve, 64, 0.15, 8, false);
+        const tubeMaterial = new THREE.MeshBasicMaterial({ 
+          color,
+          transparent: true,
+          opacity: 0.9,
+        });
+        const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+        group.add(tube);
+
+        // Glow
+        const glowTubeGeometry = new THREE.TubeGeometry(curve, 64, 0.35, 8, false);
+        const glowMaterial = new THREE.MeshBasicMaterial({ 
+          color,
+          transparent: true,
+          opacity: 0.2,
+        });
+        const glowTube = new THREE.Mesh(glowTubeGeometry, glowMaterial);
+        group.add(glowTube);
+      }
+
+      // SHIELD - Defensive block shape (arc)
+      if (annotation.type === 'shield') {
+        const shieldRadius = annotation.radius || 4;
+        
+        // Arc shape
+        const arcPoints: THREE.Vector3[] = [];
+        const arcSegments = 32;
+        const arcAngle = Math.PI * 0.7; // ~126 degrees
+        for (let i = 0; i <= arcSegments; i++) {
+          const angle = -arcAngle / 2 + (arcAngle * i / arcSegments);
+          arcPoints.push(new THREE.Vector3(
+            Math.sin(angle) * shieldRadius,
+            0,
+            -Math.cos(angle) * shieldRadius
+          ));
+        }
+        
+        // Outer arc
+        const arcGeometry = new THREE.BufferGeometry().setFromPoints(arcPoints);
+        const arcMaterial = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
+        const arc = new THREE.Line(arcGeometry, arcMaterial);
+        arc.position.set(annotation.position.x, 0.1, annotation.position.z);
+        group.add(arc);
+
+        // Filled arc area
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        for (let i = 0; i <= arcSegments; i++) {
+          const angle = -arcAngle / 2 + (arcAngle * i / arcSegments);
+          shape.lineTo(Math.sin(angle) * shieldRadius, -Math.cos(angle) * shieldRadius);
+        }
+        shape.lineTo(0, 0);
+        
+        const shapeGeometry = new THREE.ShapeGeometry(shape);
+        const shapeMaterial = new THREE.MeshBasicMaterial({ 
+          color, 
+          transparent: true, 
+          opacity: 0.25,
+          side: THREE.DoubleSide,
+        });
+        const shieldMesh = new THREE.Mesh(shapeGeometry, shapeMaterial);
+        shieldMesh.rotation.x = -Math.PI / 2;
+        shieldMesh.position.set(annotation.position.x, 0.02, annotation.position.z);
+        group.add(shieldMesh);
+      }
+
+      // DISTANCE - Measurement line with distance label
+      if (annotation.type === 'distance' && annotation.endPosition) {
+        const startVec = new THREE.Vector3(annotation.position.x, 0.15, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.15, annotation.endPosition.z);
+        const distance = startVec.distanceTo(endVec);
+        
+        // Main line
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints([startVec, endVec]);
+        const lineMaterial = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8 });
+        const line = new THREE.Line(lineGeometry, lineMaterial);
+        group.add(line);
+
+        // End caps (perpendicular lines)
+        const direction = new THREE.Vector3().subVectors(endVec, startVec).normalize();
+        const perpendicular = new THREE.Vector3(-direction.z, 0, direction.x).multiplyScalar(0.8);
+        
+        const startCap1 = startVec.clone().add(perpendicular);
+        const startCap2 = startVec.clone().sub(perpendicular);
+        const startCapGeometry = new THREE.BufferGeometry().setFromPoints([startCap1, startCap2]);
+        group.add(new THREE.Line(startCapGeometry, lineMaterial.clone()));
+
+        const endCap1 = endVec.clone().add(perpendicular);
+        const endCap2 = endVec.clone().sub(perpendicular);
+        const endCapGeometry = new THREE.BufferGeometry().setFromPoints([endCap1, endCap2]);
+        group.add(new THREE.Line(endCapGeometry, lineMaterial.clone()));
+
+        // Store distance in metadata for label display
+        (annotation as any).calculatedDistance = distance.toFixed(1);
       }
     });
   }, [annotations]);
