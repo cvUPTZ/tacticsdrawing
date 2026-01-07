@@ -3,30 +3,34 @@ import {
   User, 
   ArrowRight, 
   Circle, 
-  Pencil, 
   Lightbulb,
-  Type,
   Move,
   Trash2,
   Download,
   Save,
   Route,
   Minus,
+  Target,
+  Square,
+  Triangle,
+  Hexagon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { ToolMode, ANNOTATION_COLORS, PLAYER_COLORS } from '@/types/analysis';
+import { ToolMode, ANNOTATION_COLORS, PLAYER_COLORS, ZoneShape } from '@/types/analysis';
 import { cn } from '@/lib/utils';
 
 interface ToolPanelProps {
   currentTool: ToolMode;
   currentColor: string;
   isDashed: boolean;
+  zoneShape: ZoneShape;
   onToolChange: (tool: ToolMode) => void;
   onColorChange: (color: string) => void;
   onDashedChange: (dashed: boolean) => void;
+  onZoneShapeChange: (shape: ZoneShape) => void;
   onClearAnnotations: () => void;
   onExport: () => void;
   onSave: () => void;
@@ -42,6 +46,13 @@ const TOOLS: { id: ToolMode; icon: typeof MousePointer2; label: string; shortcut
   { id: 'zone', icon: Circle, label: 'Zone', shortcut: 'Z' },
   { id: 'spotlight', icon: Lightbulb, label: 'Spotlight', shortcut: 'S' },
   { id: 'offside', icon: Minus, label: 'Offside', shortcut: 'O' },
+  { id: 'pressing', icon: Target, label: 'Press', shortcut: 'R' },
+];
+
+const ZONE_SHAPES: { id: ZoneShape; icon: typeof Circle; label: string }[] = [
+  { id: 'circle', icon: Circle, label: 'Circle' },
+  { id: 'rectangle', icon: Square, label: 'Rectangle' },
+  { id: 'triangle', icon: Triangle, label: 'Triangle' },
 ];
 
 const QUICK_COLORS = {
@@ -54,9 +65,11 @@ export function ToolPanel({
   currentTool,
   currentColor,
   isDashed,
+  zoneShape,
   onToolChange,
   onColorChange,
   onDashedChange,
+  onZoneShapeChange,
   onClearAnnotations,
   onExport,
   onSave,
@@ -160,6 +173,32 @@ export function ToolPanel({
       </div>
 
       <Separator className="bg-border/50" />
+
+      {/* Zone Shape (show only when zone tool active) */}
+      {currentTool === 'zone' && (
+        <>
+          <div className="space-y-1">
+            <span className="hud-text text-[10px] text-muted-foreground">Zone Shape</span>
+            <div className="flex gap-1">
+              {ZONE_SHAPES.map((shape) => (
+                <Button
+                  key={shape.id}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onZoneShapeChange(shape.id)}
+                  className={cn(
+                    "flex-1 h-8 px-2 gap-1",
+                    zoneShape === shape.id && "border-primary bg-primary/10"
+                  )}
+                >
+                  <shape.icon className="h-3.5 w-3.5" />
+                </Button>
+              ))}
+            </div>
+          </div>
+          <Separator className="bg-border/50" />
+        </>
+      )}
 
       {/* Line Style */}
       <div className="space-y-1">

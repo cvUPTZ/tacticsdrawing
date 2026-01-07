@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Trash2, User, ArrowRight, Circle, Route, Lightbulb, Minus } from 'lucide-react';
+import { Eye, EyeOff, Trash2, User, ArrowRight, Circle, Route, Lightbulb, Minus, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Annotation } from '@/types/analysis';
@@ -20,6 +20,7 @@ const TYPE_ICONS: Record<Annotation['type'], typeof User> = {
   spotlight: Lightbulb,
   text: User,
   offside: Minus,
+  pressing: Target,
 };
 
 const TYPE_LABELS: Record<Annotation['type'], string> = {
@@ -30,6 +31,7 @@ const TYPE_LABELS: Record<Annotation['type'], string> = {
   spotlight: 'Spotlight',
   text: 'Text',
   offside: 'Offside',
+  pressing: 'Press',
 };
 
 export function AnnotationsList({
