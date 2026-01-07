@@ -13,7 +13,11 @@ import {
   Target,
   Square,
   Triangle,
-  Hexagon,
+  Slash,
+  MapPin,
+  Spline,
+  Shield,
+  Ruler,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -47,6 +51,11 @@ const TOOLS: { id: ToolMode; icon: typeof MousePointer2; label: string; shortcut
   { id: 'spotlight', icon: Lightbulb, label: 'Spotlight', shortcut: 'S' },
   { id: 'offside', icon: Minus, label: 'Offside', shortcut: 'O' },
   { id: 'pressing', icon: Target, label: 'Press', shortcut: 'R' },
+  { id: 'line', icon: Slash, label: 'Line', shortcut: 'L' },
+  { id: 'marker', icon: MapPin, label: 'Marker', shortcut: 'M' },
+  { id: 'curve', icon: Spline, label: 'Curve', shortcut: 'C' },
+  { id: 'shield', icon: Shield, label: 'Block', shortcut: 'B' },
+  { id: 'distance', icon: Ruler, label: 'Distance', shortcut: 'I' },
 ];
 
 const ZONE_SHAPES: { id: ZoneShape; icon: typeof Circle; label: string }[] = [

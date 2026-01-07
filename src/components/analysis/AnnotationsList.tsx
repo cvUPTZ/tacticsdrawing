@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Trash2, User, ArrowRight, Circle, Route, Lightbulb, Minus, Target } from 'lucide-react';
+import { Eye, EyeOff, Trash2, User, ArrowRight, Circle, Route, Lightbulb, Minus, Target, Slash, MapPin, Spline, Shield, Ruler } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Annotation } from '@/types/analysis';
@@ -21,6 +21,11 @@ const TYPE_ICONS: Record<Annotation['type'], typeof User> = {
   text: User,
   offside: Minus,
   pressing: Target,
+  line: Slash,
+  marker: MapPin,
+  curve: Spline,
+  shield: Shield,
+  distance: Ruler,
 };
 
 const TYPE_LABELS: Record<Annotation['type'], string> = {
@@ -32,6 +37,11 @@ const TYPE_LABELS: Record<Annotation['type'], string> = {
   text: 'Text',
   offside: 'Offside',
   pressing: 'Press',
+  line: 'Line',
+  marker: 'Marker',
+  curve: 'Curve',
+  shield: 'Block',
+  distance: 'Distance',
 };
 
 export function AnnotationsList({

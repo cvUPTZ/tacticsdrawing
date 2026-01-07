@@ -1,8 +1,8 @@
 // Core types for the video analysis platform
 
-export type AnnotationType = 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'offside' | 'pressing';
+export type AnnotationType = 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'offside' | 'pressing' | 'line' | 'marker' | 'curve' | 'shield' | 'distance';
 
-export type ToolMode = 'select' | 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'pan' | 'offside' | 'pressing';
+export type ToolMode = 'select' | 'player' | 'arrow' | 'zone' | 'freehand' | 'spotlight' | 'text' | 'pan' | 'offside' | 'pressing' | 'line' | 'marker' | 'curve' | 'shield' | 'distance';
 
 export type ZoneShape = 'circle' | 'rectangle' | 'triangle' | 'polygon';
 
