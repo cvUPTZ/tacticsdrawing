@@ -30,6 +30,10 @@ export function useVideoPlayer() {
       updateVideoState({ duration: video.duration });
     };
 
+    const handleDurationChange = () => {
+      updateVideoState({ duration: video.duration });
+    };
+
     const handlePlay = () => {
       updateVideoState({ isPlaying: true });
     };
@@ -42,20 +46,31 @@ export function useVideoPlayer() {
       updateVideoState({ isPlaying: false });
     };
 
+    const handleCanPlay = () => {
+      // Video is ready to play - update duration if not set
+      if (video.duration && !isNaN(video.duration)) {
+        updateVideoState({ duration: video.duration });
+      }
+    };
+
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    video.addEventListener('durationchange', handleDurationChange);
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
     video.addEventListener('ended', handleEnded);
+    video.addEventListener('canplay', handleCanPlay);
 
     return () => {
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      video.removeEventListener('durationchange', handleDurationChange);
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('ended', handleEnded);
+      video.removeEventListener('canplay', handleCanPlay);
     };
-  }, [updateVideoState]);
+  }, [updateVideoState, videoSrc]);
 
   const play = useCallback(() => {
     videoRef.current?.play();
@@ -74,18 +89,28 @@ export function useVideoPlayer() {
   }, [play, pause]);
 
   const seek = useCallback((time: number) => {
-    if (videoRef.current) {
-      const clampedTime = Math.max(0, Math.min(time, videoRef.current.duration || videoState.duration));
-      videoRef.current.currentTime = clampedTime;
-      updateVideoState({ currentTime: clampedTime });
+    const video = videoRef.current;
+    if (!video) return;
+    
+    // Wait for video to be ready
+    if (video.readyState < 1) {
+      console.log('Video not ready for seeking');
+      return;
     }
-  }, [videoState.duration, updateVideoState]);
+    
+    const duration = video.duration || 0;
+    if (duration === 0 || isNaN(duration)) return;
+    
+    const clampedTime = Math.max(0, Math.min(time, duration));
+    video.currentTime = clampedTime;
+  }, []);
 
   const skip = useCallback((seconds: number) => {
-    if (videoRef.current) {
-      const newTime = videoRef.current.currentTime + seconds;
-      seek(newTime);
-    }
+    const video = videoRef.current;
+    if (!video || video.readyState < 1) return;
+    
+    const newTime = video.currentTime + seconds;
+    seek(newTime);
   }, [seek]);
 
   const stepFrame = useCallback((direction: 'forward' | 'backward') => {

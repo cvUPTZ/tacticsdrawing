@@ -896,7 +896,6 @@ export function ThreeCanvas({
       if (annotation.type === 'distance' && annotation.endPosition) {
         const startVec = new THREE.Vector3(annotation.position.x, 0.15, annotation.position.z);
         const endVec = new THREE.Vector3(annotation.endPosition.x, 0.15, annotation.endPosition.z);
-        const distance = startVec.distanceTo(endVec);
         
         // Main line
         const lineGeometry = new THREE.BufferGeometry().setFromPoints([startVec, endVec]);
@@ -917,9 +916,288 @@ export function ThreeCanvas({
         const endCap2 = endVec.clone().sub(perpendicular);
         const endCapGeometry = new THREE.BufferGeometry().setFromPoints([endCap1, endCap2]);
         group.add(new THREE.Line(endCapGeometry, lineMaterial.clone()));
+      }
 
-        // Store distance in metadata for label display
-        (annotation as any).calculatedDistance = distance.toFixed(1);
+      // DOUBLE ARROW - Two-headed arrow
+      if (annotation.type === 'double_arrow' && annotation.endPosition) {
+        const startVec = new THREE.Vector3(annotation.position.x, 0.3, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.3, annotation.endPosition.z);
+        
+        // Line
+        const lineCurve = new THREE.LineCurve3(startVec, endVec);
+        const tubeGeometry = new THREE.TubeGeometry(lineCurve, 8, 0.2, 8, false);
+        const tubeMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
+        group.add(new THREE.Mesh(tubeGeometry, tubeMaterial));
+        
+        // Two arrowheads
+        const direction = new THREE.Vector3().subVectors(endVec, startVec).normalize();
+        const arrowHeadGeometry = new THREE.ConeGeometry(0.7, 2, 8);
+        
+        // End arrowhead
+        const endHead = new THREE.Mesh(arrowHeadGeometry, new THREE.MeshBasicMaterial({ color }));
+        endHead.position.copy(endVec);
+        endHead.rotation.x = Math.PI / 2;
+        endHead.rotation.z = -Math.atan2(direction.x, direction.z);
+        group.add(endHead);
+        
+        // Start arrowhead (reversed)
+        const startHead = new THREE.Mesh(arrowHeadGeometry.clone(), new THREE.MeshBasicMaterial({ color }));
+        startHead.position.copy(startVec);
+        startHead.rotation.x = -Math.PI / 2;
+        startHead.rotation.z = -Math.atan2(direction.x, direction.z);
+        group.add(startHead);
+      }
+
+      // CURVED DASHED - Curved dashed arrow
+      if (annotation.type === 'curved_dashed' && annotation.endPosition) {
+        const startVec = new THREE.Vector3(annotation.position.x, 0.3, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.3, annotation.endPosition.z);
+        const distance = startVec.distanceTo(endVec);
+        const curveHeight = Math.min(distance * 0.15, 8);
+        
+        const curve = createCurvedArrowPath(startVec, endVec, curveHeight);
+        const points = curve.getPoints(50);
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        const dashedMaterial = createDashedLineMaterial(color, 1.5, 1);
+        const dashedLine = new THREE.Line(lineGeometry, dashedMaterial);
+        dashedLine.computeLineDistances();
+        group.add(dashedLine);
+      }
+
+      // THROUGH BALL - Straight arrow with special styling
+      if (annotation.type === 'through_ball' && annotation.endPosition) {
+        const startVec = new THREE.Vector3(annotation.position.x, 0.3, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.3, annotation.endPosition.z);
+        
+        // Dashed line for through ball
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints([startVec, endVec]);
+        const dashedMaterial = createDashedLineMaterial(color, 2, 1);
+        const line = new THREE.Line(lineGeometry, dashedMaterial);
+        line.computeLineDistances();
+        group.add(line);
+        
+        // Sharp arrowhead
+        const direction = new THREE.Vector3().subVectors(endVec, startVec).normalize();
+        const arrowHead = new THREE.Mesh(
+          new THREE.ConeGeometry(0.6, 2.5, 4),
+          new THREE.MeshBasicMaterial({ color })
+        );
+        arrowHead.position.copy(endVec);
+        arrowHead.rotation.x = Math.PI / 2;
+        arrowHead.rotation.z = -Math.atan2(direction.x, direction.z);
+        group.add(arrowHead);
+      }
+
+      // SWITCH PLAY - Long curved arrow
+      if (annotation.type === 'switch_play' && annotation.endPosition) {
+        const startVec = new THREE.Vector3(annotation.position.x, 0.3, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.3, annotation.endPosition.z);
+        const distance = startVec.distanceTo(endVec);
+        
+        const curve = createCurvedArrowPath(startVec, endVec, Math.min(distance * 0.2, 12));
+        const tubeGeometry = createTubeFromCurve(curve, 0.3);
+        const tubeMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 });
+        group.add(new THREE.Mesh(tubeGeometry, tubeMaterial));
+        
+        const direction = new THREE.Vector3().subVectors(endVec, startVec).normalize();
+        const arrowHead = new THREE.Mesh(
+          new THREE.ConeGeometry(1, 3, 8),
+          new THREE.MeshBasicMaterial({ color })
+        );
+        arrowHead.position.copy(endVec);
+        arrowHead.rotation.x = Math.PI / 2;
+        arrowHead.rotation.z = -Math.atan2(direction.x, direction.z);
+        group.add(arrowHead);
+      }
+
+      // CROSS - Cross/delivery arrow
+      if (annotation.type === 'cross' && annotation.endPosition) {
+        const startVec = new THREE.Vector3(annotation.position.x, 0.3, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.3, annotation.endPosition.z);
+        const distance = startVec.distanceTo(endVec);
+        
+        const curve = createCurvedArrowPath(startVec, endVec, Math.min(distance * 0.25, 10));
+        const tubeGeometry = createTubeFromCurve(curve, 0.25);
+        const tubeMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
+        group.add(new THREE.Mesh(tubeGeometry, tubeMaterial));
+        
+        // Target circle at end
+        const targetGeometry = new THREE.RingGeometry(1.5, 2, 32);
+        const targetMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+        const target = new THREE.Mesh(targetGeometry, targetMaterial);
+        target.rotation.x = -Math.PI / 2;
+        target.position.set(annotation.endPosition.x, 0.05, annotation.endPosition.z);
+        group.add(target);
+      }
+
+      // CONE - Training cone
+      if (annotation.type === 'cone') {
+        const coneGeometry = new THREE.ConeGeometry(0.8, 1.5, 16);
+        const coneMaterial = new THREE.MeshBasicMaterial({ color });
+        const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+        cone.position.set(annotation.position.x, 0.75, annotation.position.z);
+        group.add(cone);
+        
+        // Base circle
+        const baseGeometry = new THREE.CircleGeometry(1, 16);
+        const baseMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+        const base = new THREE.Mesh(baseGeometry, baseMaterial);
+        base.rotation.x = -Math.PI / 2;
+        base.position.set(annotation.position.x, 0.01, annotation.position.z);
+        group.add(base);
+      }
+
+      // GATE - Training gate (two cones with line)
+      if (annotation.type === 'gate' && annotation.endPosition) {
+        const startVec = new THREE.Vector3(annotation.position.x, 0, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0, annotation.endPosition.z);
+        
+        // Two cones
+        [startVec, endVec].forEach(pos => {
+          const coneGeometry = new THREE.ConeGeometry(0.6, 1.2, 16);
+          const coneMaterial = new THREE.MeshBasicMaterial({ color });
+          const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+          cone.position.set(pos.x, 0.6, pos.z);
+          group.add(cone);
+        });
+        
+        // Connecting line
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(annotation.position.x, 1.2, annotation.position.z),
+          new THREE.Vector3(annotation.endPosition.x, 1.2, annotation.endPosition.z)
+        ]);
+        const lineMaterial = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7 });
+        group.add(new THREE.Line(lineGeometry, lineMaterial));
+      }
+
+      // GRID - Training grid
+      if (annotation.type === 'grid') {
+        const gridSize = (annotation.radius || 8) * (annotation.scale || 1);
+        const divisions = 4;
+        const step = gridSize / divisions;
+        
+        for (let i = 0; i <= divisions; i++) {
+          // Horizontal lines
+          const hStart = new THREE.Vector3(annotation.position.x - gridSize/2, 0.05, annotation.position.z - gridSize/2 + i * step);
+          const hEnd = new THREE.Vector3(annotation.position.x + gridSize/2, 0.05, annotation.position.z - gridSize/2 + i * step);
+          const hGeometry = new THREE.BufferGeometry().setFromPoints([hStart, hEnd]);
+          group.add(new THREE.Line(hGeometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 })));
+          
+          // Vertical lines
+          const vStart = new THREE.Vector3(annotation.position.x - gridSize/2 + i * step, 0.05, annotation.position.z - gridSize/2);
+          const vEnd = new THREE.Vector3(annotation.position.x - gridSize/2 + i * step, 0.05, annotation.position.z + gridSize/2);
+          const vGeometry = new THREE.BufferGeometry().setFromPoints([vStart, vEnd]);
+          group.add(new THREE.Line(vGeometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 })));
+        }
+      }
+
+      // LADDER - Agility ladder
+      if (annotation.type === 'ladder') {
+        const ladderLength = (annotation.radius || 6) * (annotation.scale || 1);
+        const ladderWidth = 2;
+        const rungs = 8;
+        const rungSpacing = ladderLength / rungs;
+        
+        // Side rails
+        const leftRail = [
+          new THREE.Vector3(annotation.position.x - ladderWidth/2, 0.05, annotation.position.z - ladderLength/2),
+          new THREE.Vector3(annotation.position.x - ladderWidth/2, 0.05, annotation.position.z + ladderLength/2)
+        ];
+        const rightRail = [
+          new THREE.Vector3(annotation.position.x + ladderWidth/2, 0.05, annotation.position.z - ladderLength/2),
+          new THREE.Vector3(annotation.position.x + ladderWidth/2, 0.05, annotation.position.z + ladderLength/2)
+        ];
+        group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(leftRail), new THREE.LineBasicMaterial({ color })));
+        group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rightRail), new THREE.LineBasicMaterial({ color })));
+        
+        // Rungs
+        for (let i = 0; i <= rungs; i++) {
+          const z = annotation.position.z - ladderLength/2 + i * rungSpacing;
+          const rungPoints = [
+            new THREE.Vector3(annotation.position.x - ladderWidth/2, 0.05, z),
+            new THREE.Vector3(annotation.position.x + ladderWidth/2, 0.05, z)
+          ];
+          group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rungPoints), new THREE.LineBasicMaterial({ color })));
+        }
+      }
+
+      // WALL - Defensive wall (multiple players)
+      if (annotation.type === 'wall') {
+        const wallWidth = (annotation.radius || 10) * (annotation.scale || 1);
+        const playerCount = 4;
+        const spacing = wallWidth / (playerCount - 1);
+        
+        for (let i = 0; i < playerCount; i++) {
+          const x = annotation.position.x - wallWidth/2 + i * spacing;
+          
+          // Player circle
+          const circleGeometry = new THREE.CircleGeometry(1.5, 32);
+          const circleMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+          const circle = new THREE.Mesh(circleGeometry, circleMaterial);
+          circle.rotation.x = -Math.PI / 2;
+          circle.position.set(x, 0.02, annotation.position.z);
+          group.add(circle);
+        }
+        
+        // Connecting line
+        const linePoints = [
+          new THREE.Vector3(annotation.position.x - wallWidth/2, 0.05, annotation.position.z),
+          new THREE.Vector3(annotation.position.x + wallWidth/2, 0.05, annotation.position.z)
+        ];
+        group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(linePoints), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 })));
+      }
+
+      // RUN - Movement run path
+      if (annotation.type === 'run' && annotation.endPosition) {
+        const startVec = new THREE.Vector3(annotation.position.x, 0.2, annotation.position.z);
+        const endVec = new THREE.Vector3(annotation.endPosition.x, 0.2, annotation.endPosition.z);
+        
+        // Dashed line with arrow
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints([startVec, endVec]);
+        const dashedMaterial = createDashedLineMaterial(color, 1, 0.5);
+        const line = new THREE.Line(lineGeometry, dashedMaterial);
+        line.computeLineDistances();
+        group.add(line);
+        
+        const direction = new THREE.Vector3().subVectors(endVec, startVec).normalize();
+        const arrowHead = new THREE.Mesh(
+          new THREE.ConeGeometry(0.5, 1.5, 8),
+          new THREE.MeshBasicMaterial({ color })
+        );
+        arrowHead.position.copy(endVec);
+        arrowHead.rotation.x = Math.PI / 2;
+        arrowHead.rotation.z = -Math.atan2(direction.x, direction.z);
+        group.add(arrowHead);
+      }
+
+      // Other new types rendered as basic markers/zones
+      const basicZoneTypes = ['delivery_zone', 'target_zone', 'compact_block'];
+      if (basicZoneTypes.includes(annotation.type)) {
+        const radius = (annotation.radius || 8) * (annotation.scale || 1);
+        const circleGeometry = new THREE.CircleGeometry(radius, 48);
+        const circleMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+        const circle = new THREE.Mesh(circleGeometry, circleMaterial);
+        circle.rotation.x = -Math.PI / 2;
+        circle.position.set(annotation.position.x, 0.02, annotation.position.z);
+        group.add(circle);
+        
+        const ringGeometry = new THREE.RingGeometry(radius - 0.3, radius, 64);
+        const ringMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(annotation.position.x, 0.03, annotation.position.z);
+        group.add(ring);
+      }
+
+      const basicMarkerTypes = ['decoy', 'screen', 'cover_shadow', 'press_trap', 'line_shift', 'marking'];
+      if (basicMarkerTypes.includes(annotation.type)) {
+        const radius = annotation.radius || 3;
+        const circleGeometry = new THREE.CircleGeometry(radius, 32);
+        const circleMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+        const circle = new THREE.Mesh(circleGeometry, circleMaterial);
+        circle.rotation.x = -Math.PI / 2;
+        circle.position.set(annotation.position.x, 0.02, annotation.position.z);
+        group.add(circle);
       }
     });
   }, [annotations]);
