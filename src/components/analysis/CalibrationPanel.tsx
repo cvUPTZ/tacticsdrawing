@@ -2,8 +2,13 @@ import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { CalibrationState } from '@/types/analysis';
-import { RotateCcw, Camera, Move3D } from 'lucide-react';
+import { RotateCcw, Camera, Move3D, Maximize2 } from 'lucide-react';
 import { useState } from 'react';
+
+interface PitchScale {
+  width: number;
+  height: number;
+}
 
 interface CalibrationPanelProps {
   calibration: CalibrationState;
@@ -12,6 +17,8 @@ interface CalibrationPanelProps {
   onReset: () => void;
   onToggleCalibrating: () => void;
   onApplyPreset: (preset: 'broadcast' | 'tactical' | 'sideline' | 'behindGoal') => void;
+  pitchScale?: PitchScale;
+  onPitchScaleChange?: (scale: PitchScale) => void;
 }
 
 const PRESETS = [
@@ -28,8 +35,10 @@ export function CalibrationPanel({
   onReset,
   onToggleCalibrating,
   onApplyPreset,
+  pitchScale = { width: 1, height: 1 },
+  onPitchScaleChange,
 }: CalibrationPanelProps) {
-  const [activeTab, setActiveTab] = useState<'position' | 'rotation'>('position');
+  const [activeTab, setActiveTab] = useState<'position' | 'rotation' | 'pitch'>('position');
 
   const radToDeg = (rad: number) => (rad * (180 / Math.PI)).toFixed(1);
   const degToRad = (deg: number) => deg * (Math.PI / 180);
@@ -90,6 +99,17 @@ export function CalibrationPanel({
         >
           <Move3D className="h-3 w-3" />
           Rotation
+        </button>
+        <button
+          onClick={() => setActiveTab('pitch')}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[10px] font-medium transition-colors ${
+            activeTab === 'pitch' 
+              ? 'bg-background text-foreground shadow-sm' 
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Maximize2 className="h-3 w-3" />
+          Pitch
         </button>
       </div>
 
@@ -233,6 +253,73 @@ export function CalibrationPanel({
               className="flex-1 h-6 text-[9px]"
             >
               Reset Roll
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Pitch Scale sliders */}
+      {activeTab === 'pitch' && onPitchScaleChange && (
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <Label className="text-[10px] text-muted-foreground">
+                Width Scale
+                <span className="text-[8px] ml-1 opacity-60">stretch horizontal</span>
+              </Label>
+              <span className="text-[10px] font-mono text-muted-foreground">{(pitchScale.width * 100).toFixed(0)}%</span>
+            </div>
+            <Slider
+              value={[pitchScale.width * 100]}
+              onValueChange={([v]) => onPitchScaleChange({ ...pitchScale, width: v / 100 })}
+              min={50}
+              max={200}
+              step={5}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <Label className="text-[10px] text-muted-foreground">
+                Height Scale
+                <span className="text-[8px] ml-1 opacity-60">stretch vertical</span>
+              </Label>
+              <span className="text-[10px] font-mono text-muted-foreground">{(pitchScale.height * 100).toFixed(0)}%</span>
+            </div>
+            <Slider
+              value={[pitchScale.height * 100]}
+              onValueChange={([v]) => onPitchScaleChange({ ...pitchScale, height: v / 100 })}
+              min={50}
+              max={200}
+              step={5}
+            />
+          </div>
+
+          {/* Quick presets */}
+          <div className="flex gap-1 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPitchScaleChange({ width: 1, height: 1 })}
+              className="flex-1 h-6 text-[9px]"
+            >
+              Reset
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPitchScaleChange({ width: 1.2, height: 1 })}
+              className="flex-1 h-6 text-[9px]"
+            >
+              Wide
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPitchScaleChange({ width: 1, height: 1.2 })}
+              className="flex-1 h-6 text-[9px]"
+            >
+              Tall
             </Button>
           </div>
         </div>

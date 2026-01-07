@@ -128,6 +128,7 @@ export default function Index() {
   const [playerCounter, setPlayerCounter] = useState(1);
   const [zoneShape, setZoneShape] = useState<ZoneShape>('circle');
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+  const [pitchScale, setPitchScale] = useState({ width: 1, height: 1 });
 
   // Detect formation from selected players
   const detectedFormation = useMemo(() => {
@@ -294,7 +295,7 @@ export default function Index() {
     ];
     
     // Multi-point path tools
-    const pathTools: ToolMode[] = ['freehand', 'curve', 'marking'];
+    const pathTools: ToolMode[] = ['freehand', 'curve', 'marking', 'future_trail'];
 
     if (toolMode === 'player') {
       const label = playerCounter.toString();
@@ -528,6 +529,7 @@ export default function Index() {
               toolMode={toolMode}
               isInteractive={toolMode !== 'select' && toolMode !== 'pan' && !!videoSrc}
               onPitchClick={handlePitchClick}
+              pitchScale={pitchScale}
             />
             
             {/* Tool mode indicator */}
@@ -573,7 +575,7 @@ export default function Index() {
         </main>
 
         {/* Right Sidebar - Calibration */}
-        <aside className="w-56 xl:w-64 p-3 overflow-y-auto border-l border-border/50">
+        <aside className="w-56 xl:w-64 p-3 overflow-y-auto border-l border-border/50 space-y-3">
           <CalibrationPanel
             calibration={calibration}
             isCalibrating={isCalibrating}
@@ -581,6 +583,8 @@ export default function Index() {
             onReset={resetCalibration}
             onToggleCalibrating={toggleCalibrating}
             onApplyPreset={applyPreset}
+            pitchScale={pitchScale}
+            onPitchScaleChange={setPitchScale}
           />
         </aside>
       </div>
