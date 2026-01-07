@@ -178,12 +178,15 @@ export function ThreeCanvas({
       requestAnimationFrame(animate);
       animationTimeRef.current += 0.016; // ~60fps
       
-      // Animate spotlight objects
+      // Animate objects
       annotationGroup.children.forEach(child => {
-        if ((child as any).isSpotlight) {
-          child.rotation.y += 0.005;
-          const scale = 1 + Math.sin(animationTimeRef.current * 2) * 0.05;
-          child.scale.set(scale, 1, scale);
+        // Spotlight base ring - starts fast, decelerates (easing out)
+        if ((child as any).isSpotlightRing) {
+          const startTime = (child as any).spotlightStartTime || 0;
+          const elapsed = animationTimeRef.current - startTime;
+          // Deceleration: speed decreases over time (fast start, slow end)
+          const speed = Math.max(0.02, 0.5 * Math.exp(-elapsed * 0.3));
+          child.rotation.z += speed;
         }
         if ((child as any).isPressing) {
           const pulseScale = 1 + Math.sin(animationTimeRef.current * 4) * 0.15;
@@ -539,9 +542,9 @@ export function ThreeCanvas({
         }
       }
 
-      // SPOTLIGHT - Shorter animated column
+      // SPOTLIGHT - Column with rotating base ellipse outline
       if (annotation.type === 'spotlight') {
-        const columnHeight = 12; // Shorter height
+        const columnHeight = 12;
         const columnRadius = 3;
         
         // Vertical transparent column
@@ -549,54 +552,68 @@ export function ThreeCanvas({
         const columnMaterial = new THREE.MeshBasicMaterial({ 
           color, 
           transparent: true, 
-          opacity: 0.15,
+          opacity: 0.12,
           side: THREE.DoubleSide,
         });
         const column = new THREE.Mesh(columnGeometry, columnMaterial);
         column.position.set(annotation.position.x, columnHeight / 2, annotation.position.z);
-        (column as any).isSpotlight = true;
         group.add(column);
 
-        // Brighter inner column
-        const innerColumnGeometry = new THREE.CylinderGeometry(columnRadius * 0.5, columnRadius * 0.7, columnHeight, 32, 1, true);
-        const innerColumnMaterial = new THREE.MeshBasicMaterial({ 
-          color, 
-          transparent: true, 
-          opacity: 0.1,
-          side: THREE.DoubleSide,
-        });
-        const innerColumn = new THREE.Mesh(innerColumnGeometry, innerColumnMaterial);
-        innerColumn.position.set(annotation.position.x, columnHeight / 2, annotation.position.z);
-        (innerColumn as any).isSpotlight = true;
-        group.add(innerColumn);
-
-        // Ground circle with glow effect
+        // Ground fill
         const groundGeometry = new THREE.CircleGeometry(columnRadius * 1.2, 32);
         const groundMaterial = new THREE.MeshBasicMaterial({ 
           color, 
           transparent: true, 
-          opacity: 0.35,
+          opacity: 0.25,
           side: THREE.DoubleSide,
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
         ground.position.set(annotation.position.x, 0.02, annotation.position.z);
-        (ground as any).isSpotlight = true;
         group.add(ground);
 
-        // Animated ring at the top
-        const topRingGeometry = new THREE.RingGeometry(columnRadius * 0.8, columnRadius, 32);
-        const topRingMaterial = new THREE.MeshBasicMaterial({ 
+        // ANIMATED ROTATING BASE ELLIPSE OUTLINE
+        // Create ellipse curve for the outline
+        const ellipsePoints: THREE.Vector3[] = [];
+        const segments = 64;
+        const ellipseRadiusX = columnRadius * 1.3;
+        const ellipseRadiusZ = columnRadius * 0.8; // Ellipse shape
+        for (let i = 0; i <= segments; i++) {
+          const angle = (i / segments) * Math.PI * 2;
+          ellipsePoints.push(new THREE.Vector3(
+            Math.cos(angle) * ellipseRadiusX,
+            0,
+            Math.sin(angle) * ellipseRadiusZ
+          ));
+        }
+        
+        const ellipseGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
+        const ellipseMaterial = new THREE.LineBasicMaterial({ 
           color, 
           transparent: true, 
-          opacity: 0.4,
-          side: THREE.DoubleSide,
+          opacity: 0.9,
+          linewidth: 2,
         });
-        const topRing = new THREE.Mesh(topRingGeometry, topRingMaterial);
-        topRing.rotation.x = -Math.PI / 2;
-        topRing.position.set(annotation.position.x, columnHeight, annotation.position.z);
-        (topRing as any).isSpotlight = true;
-        group.add(topRing);
+        const ellipseOutline = new THREE.Line(ellipseGeometry, ellipseMaterial);
+        ellipseOutline.position.set(annotation.position.x, 0.05, annotation.position.z);
+        (ellipseOutline as any).isSpotlightRing = true;
+        (ellipseOutline as any).spotlightStartTime = animationTimeRef.current;
+        group.add(ellipseOutline);
+
+        // Second ellipse (slightly larger, offset rotation)
+        const ellipse2Geometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
+        const ellipse2Material = new THREE.LineBasicMaterial({ 
+          color, 
+          transparent: true, 
+          opacity: 0.5,
+        });
+        const ellipse2 = new THREE.Line(ellipse2Geometry, ellipse2Material);
+        ellipse2.position.set(annotation.position.x, 0.04, annotation.position.z);
+        ellipse2.scale.set(1.15, 1, 1.15);
+        ellipse2.rotation.z = Math.PI / 4; // Offset rotation
+        (ellipse2 as any).isSpotlightRing = true;
+        (ellipse2 as any).spotlightStartTime = animationTimeRef.current + 0.5; // Slight delay
+        group.add(ellipse2);
       }
 
       // OFFSIDE LINE - Dashed horizontal line
