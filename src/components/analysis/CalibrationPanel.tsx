@@ -1,10 +1,13 @@
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { CalibrationState } from '@/types/analysis';
-import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, Grid3X3, Wand2 } from 'lucide-react';
+import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, Grid3X3, Wand2, Save, Trash2, Flame } from 'lucide-react';
 import { useState } from 'react';
 import { GridOverlayType } from './ThreeCanvas';
+import { HeatmapType } from './HeatmapOverlay';
+import { CalibrationPreset } from '@/hooks/useCalibrationPresets';
 
 interface PitchScale {
   width: number;
@@ -35,6 +38,14 @@ interface CalibrationPanelProps {
   onAutoCalibrate?: () => void;
   gridOverlay?: GridOverlayType;
   onGridOverlayChange?: (overlay: GridOverlayType) => void;
+  // Custom presets
+  customPresets?: CalibrationPreset[];
+  onSavePreset?: (name: string) => void;
+  onLoadPreset?: (preset: CalibrationPreset) => void;
+  onDeletePreset?: (id: string) => void;
+  // Heatmap
+  heatmapType?: HeatmapType;
+  onHeatmapChange?: (type: HeatmapType) => void;
 }
 
 const PRESETS = [
@@ -61,9 +72,15 @@ export function CalibrationPanel({
   onAutoCalibrate,
   gridOverlay = 'none',
   onGridOverlayChange,
+  customPresets = [],
+  onSavePreset,
+  onLoadPreset,
+  onDeletePreset,
+  heatmapType = 'none',
+  onHeatmapChange,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<'position' | 'rotation' | 'pitch'>('position');
-
+  const [newPresetName, setNewPresetName] = useState('');
   const radToDeg = (rad: number) => (rad * (180 / Math.PI)).toFixed(1);
   const degToRad = (deg: number) => deg * (Math.PI / 180);
 
@@ -92,7 +109,7 @@ export function CalibrationPanel({
         </Button>
       </div>
 
-      {/* Presets */}
+      {/* Built-in Presets */}
       <div className="flex flex-wrap gap-1">
         {PRESETS.map((preset) => (
           <Button
@@ -106,6 +123,62 @@ export function CalibrationPanel({
           </Button>
         ))}
       </div>
+
+      {/* Custom Presets */}
+      {onSavePreset && (
+        <div className="space-y-2">
+          <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <Save className="h-3 w-3" />
+            Custom Presets
+          </Label>
+          <div className="flex gap-1">
+            <Input
+              value={newPresetName}
+              onChange={(e) => setNewPresetName(e.target.value)}
+              placeholder="Preset name..."
+              className="h-7 text-[10px] flex-1"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (newPresetName.trim()) {
+                  onSavePreset(newPresetName.trim());
+                  setNewPresetName('');
+                }
+              }}
+              disabled={!newPresetName.trim()}
+              className="h-7 text-[9px] px-2"
+            >
+              <Save className="h-3 w-3" />
+            </Button>
+          </div>
+          {customPresets.length > 0 && (
+            <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+              {customPresets.map((preset) => (
+                <div key={preset.id} className="flex items-center gap-0.5">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onLoadPreset?.(preset)}
+                    className="h-6 text-[9px] px-2"
+                  >
+                    {preset.name}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDeletePreset?.(preset.id)}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tab switcher */}
       <div className="flex gap-1 p-0.5 bg-muted rounded-md">
@@ -379,6 +452,29 @@ export function CalibrationPanel({
                     className="h-6 text-[9px] capitalize"
                   >
                     {type === 'none' ? 'Off' : type}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Heatmap Overlay */}
+          {onHeatmapChange && (
+            <div className="space-y-2">
+              <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Flame className="h-3 w-3" />
+                Heatmap
+              </Label>
+              <div className="grid grid-cols-2 gap-1">
+                {(['none', 'player_positions', 'ball_movement', 'all_activity'] as const).map((type) => (
+                  <Button
+                    key={type}
+                    variant={heatmapType === type ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => onHeatmapChange(type)}
+                    className="h-6 text-[9px]"
+                  >
+                    {type === 'none' ? 'Off' : type === 'player_positions' ? 'Players' : type === 'ball_movement' ? 'Ball' : 'All'}
                   </Button>
                 ))}
               </div>

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { Annotation, CalibrationState, ToolMode, Vector3 } from '@/types/analysis';
+import { HeatmapType, HeatmapOverlay, getHeatmapColor } from './HeatmapOverlay';
 
 interface PitchScale {
   width: number;
@@ -17,6 +18,7 @@ interface ThreeCanvasProps {
   onPitchClick?: (position: Vector3) => void;
   pitchScale?: PitchScale;
   gridOverlay?: GridOverlayType;
+  heatmapType?: HeatmapType;
 }
 
 interface LabelData {
@@ -62,6 +64,7 @@ export function ThreeCanvas({
   onPitchClick,
   pitchScale = { width: 1, height: 1 },
   gridOverlay = 'none',
+  heatmapType = 'none',
 }: ThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -70,6 +73,7 @@ export function ThreeCanvas({
   const annotationGroupRef = useRef<THREE.Group | null>(null);
   const pitchGroupRef = useRef<THREE.Group | null>(null);
   const gridGroupRef = useRef<THREE.Group | null>(null);
+  const heatmapGroupRef = useRef<THREE.Group | null>(null);
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const pitchPlaneRef = useRef<THREE.Mesh | null>(null);
   const animationTimeRef = useRef(0);
@@ -133,6 +137,11 @@ export function ThreeCanvas({
     const gridGroup = new THREE.Group();
     scene.add(gridGroup);
     gridGroupRef.current = gridGroup;
+
+    // Heatmap group
+    const heatmapGroup = new THREE.Group();
+    scene.add(heatmapGroup);
+    heatmapGroupRef.current = heatmapGroup;
 
     // Animation loop with label updates
     const animate = () => {
@@ -517,7 +526,39 @@ export function ThreeCanvas({
     }
   }, [gridOverlay, pitchScale]);
 
-  // Update label positions from 3D to screen space
+  // Heatmap overlay
+  const { heatmapData } = HeatmapOverlay({
+    annotations,
+    heatmapType,
+    pitchWidth: 105 * pitchScale.width,
+    pitchHeight: 68 * pitchScale.height,
+  });
+
+  useEffect(() => {
+    const heatmapGroup = heatmapGroupRef.current;
+    if (!heatmapGroup) return;
+    while (heatmapGroup.children.length > 0) heatmapGroup.remove(heatmapGroup.children[0]);
+
+    if (heatmapType === 'none' || heatmapData.length === 0) return;
+
+    const cellSize = 10;
+
+    heatmapData.forEach(cell => {
+      const color = getHeatmapColor(cell.intensity);
+      const geometry = new THREE.PlaneGeometry(cellSize, cellSize);
+      const material = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0.3 + cell.intensity * 0.4,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(cell.x, 0.005, cell.z);
+      heatmapGroup.add(mesh);
+    });
+  }, [heatmapType, heatmapData]);
+
   const updateLabelPositions = useCallback(() => {
     const camera = cameraRef.current;
     const container = containerRef.current;
