@@ -7,6 +7,8 @@ interface PitchScale {
   height: number;
 }
 
+export type GridOverlayType = 'none' | 'thirds' | 'halves' | 'channels' | 'zones';
+
 interface ThreeCanvasProps {
   calibration: CalibrationState;
   annotations: Annotation[];
@@ -14,6 +16,7 @@ interface ThreeCanvasProps {
   isInteractive: boolean;
   onPitchClick?: (position: Vector3) => void;
   pitchScale?: PitchScale;
+  gridOverlay?: GridOverlayType;
 }
 
 interface LabelData {
@@ -58,6 +61,7 @@ export function ThreeCanvas({
   isInteractive,
   onPitchClick,
   pitchScale = { width: 1, height: 1 },
+  gridOverlay = 'none',
 }: ThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -65,6 +69,7 @@ export function ThreeCanvas({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const annotationGroupRef = useRef<THREE.Group | null>(null);
   const pitchGroupRef = useRef<THREE.Group | null>(null);
+  const gridGroupRef = useRef<THREE.Group | null>(null);
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const pitchPlaneRef = useRef<THREE.Mesh | null>(null);
   const animationTimeRef = useRef(0);
@@ -123,6 +128,11 @@ export function ThreeCanvas({
     const annotationGroup = new THREE.Group();
     scene.add(annotationGroup);
     annotationGroupRef.current = annotationGroup;
+
+    // Grid overlay group
+    const gridGroup = new THREE.Group();
+    scene.add(gridGroup);
+    gridGroupRef.current = gridGroup;
 
     // Animation loop with label updates
     const animate = () => {
@@ -396,6 +406,116 @@ export function ThreeCanvas({
     pitchGroup.add(rightGoal);
 
   }, [pitchScale]);
+
+  // Grid overlay effect
+  useEffect(() => {
+    const gridGroup = gridGroupRef.current;
+    if (!gridGroup) return;
+    while (gridGroup.children.length > 0) gridGroup.remove(gridGroup.children[0]);
+
+    if (gridOverlay === 'none') return;
+
+    const pw = 105 * pitchScale.width;
+    const ph = 68 * pitchScale.height;
+    
+    const gridColors = {
+      thirds: 0x00ff88,
+      halves: 0x00d4ff,
+      channels: 0xffaa00,
+      zones: 0xff44aa,
+    };
+    const gridColor = gridColors[gridOverlay as keyof typeof gridColors] || 0xffffff;
+    const gridMat = new THREE.LineBasicMaterial({ color: gridColor, transparent: true, opacity: 0.5 });
+    const fillMat = new THREE.MeshBasicMaterial({ color: gridColor, transparent: true, opacity: 0.08, side: THREE.DoubleSide });
+
+    if (gridOverlay === 'thirds') {
+      const thirdWidth = pw / 3;
+      for (let i = 1; i < 3; i++) {
+        const x = -pw/2 + thirdWidth * i;
+        gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(x, 0.02, -ph/2),
+          new THREE.Vector3(x, 0.02, ph/2),
+        ]), gridMat));
+      }
+      for (let i = 0; i < 3; i++) {
+        if (i % 2 === 0) {
+          const zoneGeometry = new THREE.PlaneGeometry(thirdWidth, ph);
+          const zone = new THREE.Mesh(zoneGeometry, fillMat);
+          zone.rotation.x = -Math.PI / 2;
+          zone.position.set(-pw/2 + thirdWidth * (i + 0.5), 0.015, 0);
+          gridGroup.add(zone);
+        }
+      }
+    }
+
+    if (gridOverlay === 'halves') {
+      gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-pw/2, 0.02, 0),
+        new THREE.Vector3(pw/2, 0.02, 0),
+      ]), gridMat));
+      gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0.02, -ph/2),
+        new THREE.Vector3(0, 0.02, ph/2),
+      ]), gridMat));
+      const quadrantGeometry = new THREE.PlaneGeometry(pw/2, ph/2);
+      [[1, 1], [-1, -1]].forEach(([mx, mz]) => {
+        const quad = new THREE.Mesh(quadrantGeometry, fillMat);
+        quad.rotation.x = -Math.PI / 2;
+        quad.position.set(mx * pw/4, 0.015, mz * ph/4);
+        gridGroup.add(quad);
+      });
+    }
+
+    if (gridOverlay === 'channels') {
+      const channelWidth = ph / 5;
+      for (let i = 1; i < 5; i++) {
+        const z = -ph/2 + channelWidth * i;
+        gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(-pw/2, 0.02, z),
+          new THREE.Vector3(pw/2, 0.02, z),
+        ]), gridMat));
+      }
+      for (let i = 0; i < 5; i++) {
+        if (i % 2 === 0) {
+          const channelGeometry = new THREE.PlaneGeometry(pw, channelWidth);
+          const channel = new THREE.Mesh(channelGeometry, fillMat);
+          channel.rotation.x = -Math.PI / 2;
+          channel.position.set(0, 0.015, -ph/2 + channelWidth * (i + 0.5));
+          gridGroup.add(channel);
+        }
+      }
+    }
+
+    if (gridOverlay === 'zones') {
+      const zoneWidth = pw / 6;
+      const zoneHeight = ph / 3;
+      for (let i = 1; i < 6; i++) {
+        const x = -pw/2 + zoneWidth * i;
+        gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(x, 0.02, -ph/2),
+          new THREE.Vector3(x, 0.02, ph/2),
+        ]), gridMat));
+      }
+      for (let i = 1; i < 3; i++) {
+        const z = -ph/2 + zoneHeight * i;
+        gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(-pw/2, 0.02, z),
+          new THREE.Vector3(pw/2, 0.02, z),
+        ]), gridMat));
+      }
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 6; col++) {
+          if ((row + col) % 2 === 0) {
+            const zoneGeometry = new THREE.PlaneGeometry(zoneWidth, zoneHeight);
+            const zone = new THREE.Mesh(zoneGeometry, fillMat);
+            zone.rotation.x = -Math.PI / 2;
+            zone.position.set(-pw/2 + zoneWidth * (col + 0.5), 0.015, -ph/2 + zoneHeight * (row + 0.5));
+            gridGroup.add(zone);
+          }
+        }
+      }
+    }
+  }, [gridOverlay, pitchScale]);
 
   // Update label positions from 3D to screen space
   const updateLabelPositions = useCallback(() => {
