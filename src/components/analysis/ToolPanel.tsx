@@ -10,10 +10,12 @@ import {
   Trash2,
   Download,
   Save,
+  Route,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { ToolMode, ANNOTATION_COLORS } from '@/types/analysis';
+import { ToolMode, ANNOTATION_COLORS, PLAYER_COLORS } from '@/types/analysis';
 import { cn } from '@/lib/utils';
 
 interface ToolPanelProps {
@@ -27,16 +29,21 @@ interface ToolPanelProps {
   hasVideo: boolean;
 }
 
-const TOOLS: { id: ToolMode; icon: typeof MousePointer2; label: string }[] = [
-  { id: 'select', icon: MousePointer2, label: 'Select' },
-  { id: 'pan', icon: Move, label: 'Pan' },
-  { id: 'player', icon: User, label: 'Player' },
-  { id: 'arrow', icon: ArrowRight, label: 'Arrow' },
-  { id: 'zone', icon: Circle, label: 'Zone' },
-  { id: 'freehand', icon: Pencil, label: 'Draw' },
-  { id: 'spotlight', icon: Lightbulb, label: 'Spotlight' },
-  { id: 'text', icon: Type, label: 'Text' },
+const TOOLS: { id: ToolMode; icon: typeof MousePointer2; label: string; description: string }[] = [
+  { id: 'select', icon: MousePointer2, label: 'Select', description: 'Select & move' },
+  { id: 'pan', icon: Move, label: 'Pan', description: 'Pan view' },
+  { id: 'player', icon: User, label: 'Player', description: 'Add player marker' },
+  { id: 'arrow', icon: ArrowRight, label: 'Pass', description: 'Draw pass arrow' },
+  { id: 'freehand', icon: Route, label: 'Movement', description: 'Draw run path' },
+  { id: 'zone', icon: Circle, label: 'Zone', description: 'Mark zone' },
+  { id: 'spotlight', icon: Lightbulb, label: 'Spotlight', description: 'Highlight area' },
+  { id: 'text', icon: Type, label: 'Text', description: 'Add label' },
 ];
+
+const QUICK_COLORS = {
+  home: PLAYER_COLORS.home[0],
+  away: PLAYER_COLORS.away[0],
+};
 
 export function ToolPanel({
   currentTool,
@@ -65,12 +72,45 @@ export function ToolPanel({
                 "h-9 justify-start gap-2 text-xs",
                 currentTool === tool.id && "tool-active"
               )}
-              title={tool.label}
+              title={tool.description}
             >
               <tool.icon className="h-4 w-4" />
               <span className="hidden xl:inline">{tool.label}</span>
             </Button>
           ))}
+        </div>
+      </div>
+
+      <Separator className="bg-border/50" />
+
+      {/* Team Colors */}
+      <div className="space-y-1">
+        <span className="hud-text text-[10px] text-muted-foreground">Team</span>
+        <div className="flex gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onColorChange(QUICK_COLORS.home)}
+            className={cn(
+              "flex-1 h-8 text-xs gap-1",
+              currentColor === QUICK_COLORS.home && "border-primary"
+            )}
+          >
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: QUICK_COLORS.home }} />
+            Home
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onColorChange(QUICK_COLORS.away)}
+            className={cn(
+              "flex-1 h-8 text-xs gap-1",
+              currentColor === QUICK_COLORS.away && "border-primary"
+            )}
+          >
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: QUICK_COLORS.away }} />
+            Away
+          </Button>
         </div>
       </div>
 
@@ -85,12 +125,15 @@ export function ToolPanel({
               key={color}
               onClick={() => onColorChange(color)}
               className={cn(
-                "w-6 h-6 rounded-full border-2 transition-transform hover:scale-110",
+                "w-6 h-6 rounded-full border-2 transition-all hover:scale-110",
                 currentColor === color 
-                  ? "border-foreground scale-110" 
-                  : "border-transparent"
+                  ? "border-foreground scale-110 shadow-lg" 
+                  : "border-transparent hover:border-foreground/50"
               )}
-              style={{ backgroundColor: color }}
+              style={{ 
+                backgroundColor: color,
+                boxShadow: currentColor === color ? `0 0 12px ${color}` : undefined,
+              }}
               title={color}
             />
           ))}
@@ -120,13 +163,13 @@ export function ToolPanel({
             className="w-full justify-start gap-2 text-xs"
           >
             <Download className="h-4 w-4" />
-            Export
+            Export Snapshot
           </Button>
           <Button
-            variant="ghost"
+            variant="default"
             size="sm"
             onClick={onSave}
-            className="w-full justify-start gap-2 text-xs text-primary hover:text-primary hover:bg-primary/10"
+            className="w-full justify-start gap-2 text-xs"
           >
             <Save className="h-4 w-4" />
             Save Project

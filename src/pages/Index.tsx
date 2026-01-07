@@ -39,6 +39,7 @@ export default function Index() {
     currentColor,
     setCurrentColor,
     addAnnotation,
+    updateAnnotation,
     deleteAnnotation,
     clearAnnotations,
     selectAnnotation,
@@ -71,6 +72,8 @@ export default function Index() {
   const [projectName, setProjectName] = useState('Untitled Analysis');
   const [projectsDialogOpen, setProjectsDialogOpen] = useState(false);
   const [arrowStartPosition, setArrowStartPosition] = useState<Vector3 | null>(null);
+  const [freehandPoints, setFreehandPoints] = useState<Vector3[]>([]);
+  const [isDrawingFreehand, setIsDrawingFreehand] = useState(false);
 
   // Redirect to auth if not authenticated
   useEffect(() => {
@@ -112,6 +115,20 @@ export default function Index() {
         case 'Escape':
           setToolMode('select');
           setArrowStartPosition(null);
+          if (isDrawingFreehand && freehandPoints.length > 1) {
+            addAnnotation('freehand', freehandPoints[0], {
+              timestampStart: videoState.currentTime,
+            });
+            // Update the last annotation with points
+            setTimeout(() => {
+              const lastAnnotation = annotations[annotations.length - 1];
+              if (lastAnnotation) {
+                updateAnnotation(lastAnnotation.id, { points: freehandPoints });
+              }
+            }, 0);
+          }
+          setIsDrawingFreehand(false);
+          setFreehandPoints([]);
           break;
         case 'Delete':
         case 'Backspace':
@@ -119,12 +136,28 @@ export default function Index() {
             deleteAnnotation(selectedAnnotationId);
           }
           break;
+        // Tool shortcuts
+        case 'KeyV':
+          setToolMode('select');
+          break;
+        case 'KeyP':
+          setToolMode('player');
+          break;
+        case 'KeyA':
+          setToolMode('arrow');
+          break;
+        case 'KeyD':
+          setToolMode('freehand');
+          break;
+        case 'KeyZ':
+          setToolMode('zone');
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, stepFrame, toggleMute, selectedAnnotationId, deleteAnnotation]);
+  }, [togglePlay, stepFrame, toggleMute, selectedAnnotationId, deleteAnnotation, isDrawingFreehand, freehandPoints, addAnnotation, videoState.currentTime, annotations, updateAnnotation]);
 
   const handleUpload = useCallback((file: File) => {
     loadVideo(file);
@@ -138,11 +171,15 @@ export default function Index() {
 
   const handlePitchClick = useCallback((position: Vector3) => {
     if (toolMode === 'player') {
-      addAnnotation('player', position, { timestampStart: videoState.currentTime });
+      const playerNumber = (annotations.filter(a => a.type === 'player').length + 1).toString();
+      addAnnotation('player', position, { 
+        label: playerNumber,
+        timestampStart: videoState.currentTime,
+      });
     } else if (toolMode === 'arrow') {
       if (!arrowStartPosition) {
         setArrowStartPosition(position);
-        toast.info('Click again to set arrow end point');
+        toast.info('Click to set pass end point', { duration: 2000 });
       } else {
         addAnnotation('arrow', arrowStartPosition, {
           endPosition: position,
@@ -150,8 +187,18 @@ export default function Index() {
         });
         setArrowStartPosition(null);
       }
+    } else if (toolMode === 'freehand') {
+      if (!isDrawingFreehand) {
+        setIsDrawingFreehand(true);
+        setFreehandPoints([position]);
+        toast.info('Click to add path points, press Escape to finish', { duration: 3000 });
+      } else {
+        const newPoints = [...freehandPoints, position];
+        setFreehandPoints(newPoints);
+      }
     } else if (toolMode === 'zone') {
       addAnnotation('zone', position, {
+        radius: 12,
         timestampStart: videoState.currentTime,
       });
     } else if (toolMode === 'spotlight') {
@@ -159,10 +206,23 @@ export default function Index() {
         timestampStart: videoState.currentTime,
       });
     }
-  }, [toolMode, arrowStartPosition, addAnnotation, videoState.currentTime]);
+  }, [toolMode, arrowStartPosition, addAnnotation, videoState.currentTime, isDrawingFreehand, freehandPoints, annotations]);
+
+  // Finalize freehand when tool changes
+  useEffect(() => {
+    if (toolMode !== 'freehand' && isDrawingFreehand && freehandPoints.length > 1) {
+      const annotation = addAnnotation('freehand', freehandPoints[0], {
+        timestampStart: videoState.currentTime,
+      });
+      if (annotation) {
+        updateAnnotation(annotation.id, { points: freehandPoints });
+      }
+      setIsDrawingFreehand(false);
+      setFreehandPoints([]);
+    }
+  }, [toolMode, isDrawingFreehand, freehandPoints, addAnnotation, updateAnnotation, videoState.currentTime]);
 
   const handleExport = useCallback(() => {
-    // Create composite image
     const video = videoRef.current;
     if (!video) return;
 
@@ -222,7 +282,12 @@ export default function Index() {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center animate-pulse">
+            <span className="text-primary-foreground font-bold text-xl">TA</span>
+          </div>
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
       </div>
     );
   }
@@ -242,7 +307,7 @@ export default function Index() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Tools */}
-        <aside className="w-48 xl:w-56 p-3 space-y-3 overflow-y-auto">
+        <aside className="w-48 xl:w-56 p-3 space-y-3 overflow-y-auto border-r border-border/50">
           <ToolPanel
             currentTool={toolMode}
             currentColor={currentColor}
@@ -276,11 +341,24 @@ export default function Index() {
               isInteractive={toolMode !== 'select' && toolMode !== 'pan' && !!videoSrc}
               onPitchClick={handlePitchClick}
             />
+            
+            {/* Tool mode indicator */}
+            {toolMode !== 'select' && toolMode !== 'pan' && videoSrc && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-full flex items-center gap-2">
+                <div 
+                  className="w-2 h-2 rounded-full animate-pulse"
+                  style={{ backgroundColor: currentColor }}
+                />
+                <span className="text-sm font-medium capitalize">{toolMode} Mode</span>
+                {arrowStartPosition && <span className="text-xs text-muted-foreground">| Click end point</span>}
+                {isDrawingFreehand && <span className="text-xs text-muted-foreground">| {freehandPoints.length} points (Esc to finish)</span>}
+              </div>
+            )}
           </div>
         </main>
 
         {/* Right Sidebar - Calibration */}
-        <aside className="w-56 xl:w-64 p-3 overflow-y-auto">
+        <aside className="w-56 xl:w-64 p-3 overflow-y-auto border-l border-border/50">
           <CalibrationPanel
             calibration={calibration}
             isCalibrating={isCalibrating}
