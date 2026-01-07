@@ -74,6 +74,8 @@ export default function Index() {
   const [arrowStartPosition, setArrowStartPosition] = useState<Vector3 | null>(null);
   const [freehandPoints, setFreehandPoints] = useState<Vector3[]>([]);
   const [isDrawingFreehand, setIsDrawingFreehand] = useState(false);
+  const [isDashed, setIsDashed] = useState(false);
+  const [playerCounter, setPlayerCounter] = useState(1);
 
   // Redirect to auth if not authenticated
   useEffect(() => {
@@ -115,20 +117,7 @@ export default function Index() {
         case 'Escape':
           setToolMode('select');
           setArrowStartPosition(null);
-          if (isDrawingFreehand && freehandPoints.length > 1) {
-            addAnnotation('freehand', freehandPoints[0], {
-              timestampStart: videoState.currentTime,
-            });
-            // Update the last annotation with points
-            setTimeout(() => {
-              const lastAnnotation = annotations[annotations.length - 1];
-              if (lastAnnotation) {
-                updateAnnotation(lastAnnotation.id, { points: freehandPoints });
-              }
-            }, 0);
-          }
-          setIsDrawingFreehand(false);
-          setFreehandPoints([]);
+          finalizeFreehand();
           break;
         case 'Delete':
         case 'Backspace':
@@ -136,7 +125,6 @@ export default function Index() {
             deleteAnnotation(selectedAnnotationId);
           }
           break;
-        // Tool shortcuts
         case 'KeyV':
           setToolMode('select');
           break;
@@ -152,12 +140,37 @@ export default function Index() {
         case 'KeyZ':
           setToolMode('zone');
           break;
+        case 'KeyS':
+          if (!e.ctrlKey && !e.metaKey) {
+            setToolMode('spotlight');
+          }
+          break;
+        case 'KeyO':
+          setToolMode('offside');
+          break;
+        case 'KeyH':
+          setToolMode('pan');
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, stepFrame, toggleMute, selectedAnnotationId, deleteAnnotation, isDrawingFreehand, freehandPoints, addAnnotation, videoState.currentTime, annotations, updateAnnotation]);
+  }, [togglePlay, stepFrame, toggleMute, selectedAnnotationId, deleteAnnotation]);
+
+  const finalizeFreehand = useCallback(() => {
+    if (isDrawingFreehand && freehandPoints.length > 1) {
+      const annotation = addAnnotation('freehand', freehandPoints[0], {
+        timestampStart: videoState.currentTime,
+        points: freehandPoints,
+      });
+      if (annotation && isDashed) {
+        updateAnnotation(annotation.id, { metadata: { dashed: true } });
+      }
+    }
+    setIsDrawingFreehand(false);
+    setFreehandPoints([]);
+  }, [isDrawingFreehand, freehandPoints, addAnnotation, videoState.currentTime, isDashed, updateAnnotation]);
 
   const handleUpload = useCallback((file: File) => {
     loadVideo(file);
@@ -166,61 +179,71 @@ export default function Index() {
     } else {
       updateProject(currentProject.id, { videoFilename: file.name });
     }
+    setPlayerCounter(1);
     toast.success(`Loaded: ${file.name}`);
   }, [loadVideo, currentProject, createProject, updateProject]);
 
   const handlePitchClick = useCallback((position: Vector3) => {
     if (toolMode === 'player') {
-      const playerNumber = (annotations.filter(a => a.type === 'player').length + 1).toString();
+      const label = playerCounter.toString();
       addAnnotation('player', position, { 
-        label: playerNumber,
+        label,
         timestampStart: videoState.currentTime,
       });
+      setPlayerCounter(prev => prev + 1);
     } else if (toolMode === 'arrow') {
       if (!arrowStartPosition) {
         setArrowStartPosition(position);
         toast.info('Click to set pass end point', { duration: 2000 });
       } else {
-        addAnnotation('arrow', arrowStartPosition, {
+        const annotation = addAnnotation('arrow', arrowStartPosition, {
           endPosition: position,
           timestampStart: videoState.currentTime,
         });
+        if (annotation && isDashed) {
+          updateAnnotation(annotation.id, { metadata: { dashed: true } });
+        }
         setArrowStartPosition(null);
       }
     } else if (toolMode === 'freehand') {
       if (!isDrawingFreehand) {
         setIsDrawingFreehand(true);
         setFreehandPoints([position]);
-        toast.info('Click to add path points, press Escape to finish', { duration: 3000 });
+        toast.info('Click to add points. Press Escape to finish.', { duration: 3000 });
       } else {
-        const newPoints = [...freehandPoints, position];
-        setFreehandPoints(newPoints);
+        setFreehandPoints(prev => [...prev, position]);
       }
     } else if (toolMode === 'zone') {
       addAnnotation('zone', position, {
-        radius: 12,
+        radius: 8,
         timestampStart: videoState.currentTime,
       });
     } else if (toolMode === 'spotlight') {
+      const spotlightNumber = annotations.filter(a => a.type === 'spotlight').length + 1;
       addAnnotation('spotlight', position, {
+        label: `Player ${spotlightNumber}`,
         timestampStart: videoState.currentTime,
       });
+    } else if (toolMode === 'offside') {
+      if (!arrowStartPosition) {
+        setArrowStartPosition(position);
+        toast.info('Click to set offside line end point', { duration: 2000 });
+      } else {
+        addAnnotation('offside', arrowStartPosition, {
+          endPosition: position,
+          timestampStart: videoState.currentTime,
+        });
+        setArrowStartPosition(null);
+      }
     }
-  }, [toolMode, arrowStartPosition, addAnnotation, videoState.currentTime, isDrawingFreehand, freehandPoints, annotations]);
+  }, [toolMode, arrowStartPosition, addAnnotation, videoState.currentTime, isDrawingFreehand, isDashed, updateAnnotation, playerCounter, annotations]);
 
   // Finalize freehand when tool changes
   useEffect(() => {
-    if (toolMode !== 'freehand' && isDrawingFreehand && freehandPoints.length > 1) {
-      const annotation = addAnnotation('freehand', freehandPoints[0], {
-        timestampStart: videoState.currentTime,
-      });
-      if (annotation) {
-        updateAnnotation(annotation.id, { points: freehandPoints });
-      }
-      setIsDrawingFreehand(false);
-      setFreehandPoints([]);
+    if (toolMode !== 'freehand') {
+      finalizeFreehand();
     }
-  }, [toolMode, isDrawingFreehand, freehandPoints, addAnnotation, updateAnnotation, videoState.currentTime]);
+  }, [toolMode, finalizeFreehand]);
 
   const handleExport = useCallback(() => {
     const video = videoRef.current;
@@ -232,16 +255,13 @@ export default function Index() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Draw video frame
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Get Three.js canvas and composite it
     const threeCanvas = document.querySelector('.three-layer canvas') as HTMLCanvasElement;
     if (threeCanvas) {
       ctx.drawImage(threeCanvas, 0, 0, canvas.width, canvas.height);
     }
 
-    // Download
     const link = document.createElement('a');
     link.download = `${projectName}-${formatTimecode(videoState.currentTime).replace(/:/g, '-')}.png`;
     link.href = canvas.toDataURL('image/png');
@@ -267,9 +287,9 @@ export default function Index() {
     setCurrentProject(project);
     setProjectName(project.name);
     
-    // Load annotations
     const loadedAnnotations = await loadAnnotations(project.id);
     setAnnotations(loadedAnnotations);
+    setPlayerCounter(loadedAnnotations.filter(a => a.type === 'player').length + 1);
     
     toast.success(`Loaded: ${project.name}`);
   }, [setCurrentProject, loadAnnotations, setAnnotations]);
@@ -292,6 +312,18 @@ export default function Index() {
     );
   }
 
+  const getToolModeLabel = () => {
+    switch (toolMode) {
+      case 'player': return 'Click to place player marker';
+      case 'arrow': return arrowStartPosition ? 'Click end point' : 'Click start point';
+      case 'freehand': return isDrawingFreehand ? `${freehandPoints.length} points (Esc to finish)` : 'Click to start path';
+      case 'zone': return 'Click to place zone';
+      case 'spotlight': return 'Click to place spotlight';
+      case 'offside': return arrowStartPosition ? 'Click end point' : 'Click start point';
+      default: return '';
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top Bar */}
@@ -311,8 +343,10 @@ export default function Index() {
           <ToolPanel
             currentTool={toolMode}
             currentColor={currentColor}
+            isDashed={isDashed}
             onToolChange={setToolMode}
             onColorChange={setCurrentColor}
+            onDashedChange={setIsDashed}
             onClearAnnotations={clearAnnotations}
             onExport={handleExport}
             onSave={handleSave}
@@ -344,14 +378,21 @@ export default function Index() {
             
             {/* Tool mode indicator */}
             {toolMode !== 'select' && toolMode !== 'pan' && videoSrc && (
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-full flex items-center gap-2">
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-full flex items-center gap-3 fade-in">
                 <div 
-                  className="w-2 h-2 rounded-full animate-pulse"
+                  className="w-3 h-3 rounded-full animate-pulse"
                   style={{ backgroundColor: currentColor }}
                 />
-                <span className="text-sm font-medium capitalize">{toolMode} Mode</span>
-                {arrowStartPosition && <span className="text-xs text-muted-foreground">| Click end point</span>}
-                {isDrawingFreehand && <span className="text-xs text-muted-foreground">| {freehandPoints.length} points (Esc to finish)</span>}
+                <span className="text-sm font-medium capitalize">{toolMode}</span>
+                <span className="text-xs text-muted-foreground">| {getToolModeLabel()}</span>
+                {isDashed && <span className="text-xs text-accent">Dashed</span>}
+              </div>
+            )}
+
+            {/* Player counter */}
+            {toolMode === 'player' && videoSrc && (
+              <div className="absolute top-16 left-1/2 -translate-x-1/2 glass-panel px-3 py-1 rounded-full">
+                <span className="text-xs text-muted-foreground">Next: Player #{playerCounter}</span>
               </div>
             )}
           </div>
