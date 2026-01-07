@@ -16,6 +16,8 @@ export function useAnnotations(projectId?: string) {
       label?: string;
       color?: string;
       timestampStart?: number;
+      radius?: number;
+      points?: Vector3[];
     }
   ) => {
     const newAnnotation: Annotation = {
@@ -26,6 +28,8 @@ export function useAnnotations(projectId?: string) {
       color: options?.color || currentColor,
       position,
       endPosition: options?.endPosition,
+      points: options?.points,
+      radius: options?.radius,
       strokeWidth: 3,
       timestampStart: options?.timestampStart || 0,
       metadata: {},

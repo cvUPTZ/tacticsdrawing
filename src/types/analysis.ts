@@ -89,16 +89,18 @@ export const DEFAULT_CALIBRATION: CalibrationState = {
 };
 
 export const PLAYER_COLORS = {
-  home: ['#00d4ff', '#0099cc', '#00ffcc', '#00ccff', '#33e6ff'],
+  home: ['#00d4ff', '#00b8e6', '#00ffcc', '#00ccff', '#33e6ff'],
   away: ['#ff4444', '#ff6666', '#ff8800', '#ff0066', '#ff3366'],
 };
 
 export const ANNOTATION_COLORS = [
-  '#00d4ff', // Cyan (primary)
+  '#00d4ff', // Cyan (primary - home)
+  '#ff4444', // Red (away)
   '#ff8800', // Orange (accent)
   '#00ff88', // Green
-  '#ff4488', // Pink
   '#ffff00', // Yellow
   '#aa44ff', // Purple
+  '#ff44aa', // Pink
   '#ffffff', // White
+  '#1a1a1a', // Black
 ];
