@@ -89,6 +89,11 @@ export function ThreeCanvas({
   const [labels, setLabels] = useState<LabelData[]>([]);
   const updateLabelPositionsRef = useRef<() => void>(() => {});
 
+  // Mouse control state refs
+  const isDraggingRef = useRef(false);
+  const lastMouseRef = useRef({ x: 0, y: 0 });
+  const orbitRef = useRef({ theta: 0, phi: Math.PI / 4, radius: 80 }); // Spherical coords
+
   // Initialize Three.js scene
   useEffect(() => {
     if (!containerRef.current) return;
@@ -105,12 +110,21 @@ export function ThreeCanvas({
     const camera = new THREE.PerspectiveCamera(calibration.cameraFov, width / height, 0.1, 1000);
     cameraRef.current = camera;
 
-    // Renderer with enhanced settings - preserveDrawingBuffer for export
+    // Set initial camera position from orbit
+    const { theta, phi, radius } = orbitRef.current;
+    camera.position.set(
+      radius * Math.sin(phi) * Math.cos(theta),
+      radius * Math.cos(phi),
+      radius * Math.sin(phi) * Math.sin(theta)
+    );
+    camera.lookAt(0, 0, 0);
+
+    // Renderer with enhanced settings
     const renderer = new THREE.WebGLRenderer({ 
       antialias: true, 
       alpha: true,
       powerPreference: 'high-performance',
-      preserveDrawingBuffer: true, // Required for snapshot export
+      preserveDrawingBuffer: true,
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -118,17 +132,17 @@ export function ThreeCanvas({
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Create pitch group (will be updated when pitchScale changes)
+    // Create pitch group
     const pitchGroup = new THREE.Group();
     scene.add(pitchGroup);
     pitchGroupRef.current = pitchGroup;
 
-    // Base pitch plane for raycasting (large enough for any scale)
+    // Invisible pitch plane for raycasting
     const pitchGeometry = new THREE.PlaneGeometry(200, 150);
     const pitchMaterial = new THREE.MeshBasicMaterial({ 
       color: 0x2d8a3e,
       transparent: true,
-      opacity: 0.02,
+      opacity: 0,
       side: THREE.DoubleSide,
     });
     const pitchPlane = new THREE.Mesh(pitchGeometry, pitchMaterial);
@@ -157,34 +171,91 @@ export function ThreeCanvas({
     scene.add(calibrationMarkers);
     calibrationMarkersRef.current = calibrationMarkers;
 
-    // Add ambient and directional lighting for SOTA pitch
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
     directionalLight.position.set(50, 100, 50);
-    directionalLight.castShadow = true;
     scene.add(directionalLight);
 
-    // Animation loop with label updates
+    // Mouse controls for rotation
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) { // Left click
+        isDraggingRef.current = true;
+        lastMouseRef.current = { x: e.clientX, y: e.clientY };
+        container.style.cursor = 'grabbing';
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+
+      const deltaX = e.clientX - lastMouseRef.current.x;
+      const deltaY = e.clientY - lastMouseRef.current.y;
+      lastMouseRef.current = { x: e.clientX, y: e.clientY };
+
+      // Update spherical coordinates
+      orbitRef.current.theta -= deltaX * 0.005;
+      orbitRef.current.phi -= deltaY * 0.005;
+      
+      // Clamp phi to prevent flipping
+      orbitRef.current.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, orbitRef.current.phi));
+
+      // Update camera position
+      const { theta, phi, radius } = orbitRef.current;
+      camera.position.set(
+        radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.cos(phi),
+        radius * Math.sin(phi) * Math.sin(theta)
+      );
+      camera.lookAt(0, 0, 0);
+    };
+
+    const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      container.style.cursor = 'grab';
+    };
+
+    const handleMouseLeave = () => {
+      isDraggingRef.current = false;
+      container.style.cursor = 'default';
+    };
+
+    // Wheel for zoom
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      orbitRef.current.radius += e.deltaY * 0.1;
+      orbitRef.current.radius = Math.max(20, Math.min(200, orbitRef.current.radius));
+
+      const { theta, phi, radius } = orbitRef.current;
+      camera.position.set(
+        radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.cos(phi),
+        radius * Math.sin(phi) * Math.sin(theta)
+      );
+      camera.lookAt(0, 0, 0);
+    };
+
+    container.style.cursor = 'grab';
+    container.addEventListener('mousedown', handleMouseDown);
+    container.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mouseup', handleMouseUp);
+    container.addEventListener('mouseleave', handleMouseLeave);
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
+    // Animation loop
     const animate = () => {
       requestAnimationFrame(animate);
-      animationTimeRef.current += 0.016; // ~60fps
+      animationTimeRef.current += 0.016;
       
-      // Animate objects
       annotationGroup.children.forEach(child => {
-        // Spotlight dashed ring - rotating with pulse
         if ((child as any).isSpotlightRing) {
           const startTime = (child as any).spotlightStartTime || 0;
           const elapsed = animationTimeRef.current - startTime;
-          // Deceleration: speed decreases over time (fast start, slow end)
           const speed = Math.max(0.01, 0.4 * Math.exp(-elapsed * 0.25));
           child.rotation.y += speed;
-          
-          // Pulse effect on scale
           const pulse = 1 + Math.sin(animationTimeRef.current * 3) * 0.08;
           child.scale.set(pulse, 1, pulse);
-          
-          // Pulse opacity
           const mat = (child as THREE.Line).material;
           if (mat && 'opacity' in mat) {
             (mat as THREE.LineBasicMaterial).opacity = 0.6 + Math.sin(animationTimeRef.current * 4) * 0.3;
@@ -201,8 +272,6 @@ export function ThreeCanvas({
       });
       
       renderer.render(scene, camera);
-      
-      // Update label positions (always latest function)
       updateLabelPositionsRef.current();
     };
     animate();
@@ -220,6 +289,11 @@ export function ThreeCanvas({
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      container.removeEventListener('mousedown', handleMouseDown);
+      container.removeEventListener('mousemove', handleMouseMove);
+      container.removeEventListener('mouseup', handleMouseUp);
+      container.removeEventListener('mouseleave', handleMouseLeave);
+      container.removeEventListener('wheel', handleWheel);
       renderer.dispose();
       container.removeChild(renderer.domElement);
     };
