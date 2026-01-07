@@ -61,6 +61,7 @@ export function ThreeCanvas({
   const pitchPlaneRef = useRef<THREE.Mesh | null>(null);
   const animationTimeRef = useRef(0);
   const [labels, setLabels] = useState<LabelData[]>([]);
+  const updateLabelPositionsRef = useRef<() => void>(() => {});
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -210,8 +211,8 @@ export function ThreeCanvas({
       
       renderer.render(scene, camera);
       
-      // Update label positions
-      updateLabelPositions();
+      // Update label positions (always latest function)
+      updateLabelPositionsRef.current();
     };
     animate();
 
@@ -291,6 +292,11 @@ export function ThreeCanvas({
 
     setLabels(newLabels);
   }, [annotations]);
+
+  // Keep the animation loop calling the latest label updater
+  useEffect(() => {
+    updateLabelPositionsRef.current = updateLabelPositions;
+  }, [updateLabelPositions]);
 
   // Update camera based on calibration
   useEffect(() => {
