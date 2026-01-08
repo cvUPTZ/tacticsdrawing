@@ -5,6 +5,7 @@ import { HeatmapType, HeatmapOverlay, getHeatmapColor } from './HeatmapOverlay';
 import { createSOTAPitch, PITCH_REFERENCE_POINTS } from './SOTAPitch';
 import { CalibrationPoint } from './PointCalibration';
 import { PitchTransform, DEFAULT_TRANSFORM } from './PitchTransformControls';
+import { PitchCorners, DEFAULT_CORNERS, createPitchFromCorners, createManipulationHandles } from './PitchManipulator';
 
 interface PitchScale {
   width: number;
@@ -26,6 +27,10 @@ interface ThreeCanvasProps {
   calibrationPoints?: CalibrationPoint[];
   activeCalibrationPointId?: string | null;
   pitchTransform?: PitchTransform;
+  // New pitch manipulation props
+  pitchCorners?: PitchCorners;
+  onPitchCornersChange?: (corners: PitchCorners) => void;
+  isPitchManipulating?: boolean;
 }
 
 interface LabelData {
@@ -76,6 +81,9 @@ export function ThreeCanvas({
   calibrationPoints = [],
   activeCalibrationPointId = null,
   pitchTransform = DEFAULT_TRANSFORM,
+  pitchCorners = DEFAULT_CORNERS,
+  onPitchCornersChange,
+  isPitchManipulating = false,
 }: ThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -86,11 +94,18 @@ export function ThreeCanvas({
   const gridGroupRef = useRef<THREE.Group | null>(null);
   const heatmapGroupRef = useRef<THREE.Group | null>(null);
   const calibrationMarkersRef = useRef<THREE.Group | null>(null);
+  const handlesGroupRef = useRef<THREE.Group | null>(null);
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const pitchPlaneRef = useRef<THREE.Mesh | null>(null);
   const animationTimeRef = useRef(0);
   const [labels, setLabels] = useState<LabelData[]>([]);
   const updateLabelPositionsRef = useRef<() => void>(() => {});
+  
+  // Pitch manipulation state
+  const [activeHandle, setActiveHandle] = useState<string | null>(null);
+  const isDraggingHandleRef = useRef(false);
+  const dragStartRef = useRef<{ x: number; z: number } | null>(null);
+  const cornersStartRef = useRef<PitchCorners | null>(null);
 
   // Mouse control state refs
   const isDraggingRef = useRef(false);
@@ -173,6 +188,11 @@ export function ThreeCanvas({
     const calibrationMarkers = new THREE.Group();
     scene.add(calibrationMarkers);
     calibrationMarkersRef.current = calibrationMarkers;
+
+    // Pitch manipulation handles group
+    const handlesGroup = new THREE.Group();
+    scene.add(handlesGroup);
+    handlesGroupRef.current = handlesGroup;
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -302,21 +322,24 @@ export function ThreeCanvas({
     };
   }, []);
 
-  // Update pitch when scale changes - Use SOTA pitch or basic
+  // Update pitch when scale/corners change
   useEffect(() => {
     const pitchGroup = pitchGroupRef.current;
     if (!pitchGroup) return;
     while (pitchGroup.children.length > 0) {
       const child = pitchGroup.children[0];
       pitchGroup.remove(child);
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        if (child.material instanceof THREE.Material) child.material.dispose();
+      if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
+        if ('geometry' in child) child.geometry.dispose();
+        if ('material' in child && child.material instanceof THREE.Material) child.material.dispose();
       }
     }
 
-    if (useSOTAPitch) {
-      // Use SOTA professional pitch
+    // Use corner-based pitch when manipulating, otherwise use SOTA
+    if (isPitchManipulating) {
+      const cornerPitch = createPitchFromCorners(pitchCorners);
+      pitchGroup.add(cornerPitch);
+    } else if (useSOTAPitch) {
       const sotaPitch = createSOTAPitch(pitchScale);
       pitchGroup.add(sotaPitch);
     } else {
@@ -326,19 +349,16 @@ export function ThreeCanvas({
       const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
       const matBright = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
 
-      // Pitch outline
       pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(-pw/2, 0.01, -ph/2), new THREE.Vector3(pw/2, 0.01, -ph/2),
         new THREE.Vector3(pw/2, 0.01, ph/2), new THREE.Vector3(-pw/2, 0.01, ph/2),
         new THREE.Vector3(-pw/2, 0.01, -ph/2),
       ]), matBright));
 
-      // Center line
       pitchGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0.01, -ph/2), new THREE.Vector3(0, 0.01, ph/2),
       ]), mat));
 
-      // Center circle
       const centerCircleRadius = 9.15 * pitchScale.width;
       const circle = new THREE.Mesh(
         new THREE.RingGeometry(centerCircleRadius - 0.15, centerCircleRadius, 64),
@@ -349,11 +369,173 @@ export function ThreeCanvas({
       pitchGroup.add(circle);
     }
 
-    // Apply pitch transform
-    pitchGroup.position.set(pitchTransform.positionX, pitchTransform.positionY, pitchTransform.positionZ);
-    pitchGroup.rotation.set(pitchTransform.rotationX, pitchTransform.rotationY, pitchTransform.rotationZ);
-    pitchGroup.scale.set(pitchTransform.scaleX, pitchTransform.scaleY, pitchTransform.scaleZ);
-  }, [pitchScale, useSOTAPitch, pitchTransform]);
+    // Apply pitch transform only when not manipulating corners
+    if (!isPitchManipulating) {
+      pitchGroup.position.set(pitchTransform.positionX, pitchTransform.positionY, pitchTransform.positionZ);
+      pitchGroup.rotation.set(pitchTransform.rotationX, pitchTransform.rotationY, pitchTransform.rotationZ);
+      pitchGroup.scale.set(pitchTransform.scaleX, pitchTransform.scaleY, pitchTransform.scaleZ);
+    } else {
+      pitchGroup.position.set(0, 0, 0);
+      pitchGroup.rotation.set(0, 0, 0);
+      pitchGroup.scale.set(1, 1, 1);
+    }
+  }, [pitchScale, useSOTAPitch, pitchTransform, isPitchManipulating, pitchCorners]);
+
+  // Render manipulation handles when in manipulation mode
+  useEffect(() => {
+    const handlesGroup = handlesGroupRef.current;
+    if (!handlesGroup) return;
+    
+    while (handlesGroup.children.length > 0) {
+      const child = handlesGroup.children[0];
+      handlesGroup.remove(child);
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        if (child.material instanceof THREE.Material) child.material.dispose();
+      }
+    }
+
+    if (!isPitchManipulating) return;
+
+    const handles = createManipulationHandles(pitchCorners, activeHandle);
+    handlesGroup.add(handles);
+  }, [isPitchManipulating, pitchCorners, activeHandle]);
+
+  // Handle mouse events for pitch manipulation
+  useEffect(() => {
+    const container = containerRef.current;
+    const camera = cameraRef.current;
+    const scene = sceneRef.current;
+    if (!container || !camera || !scene || !isPitchManipulating) return;
+
+    const raycaster = raycasterRef.current;
+
+    const getWorldPosition = (e: MouseEvent): { x: number; z: number } | null => {
+      const rect = container.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.setFromCamera(mouse, camera);
+      
+      // Intersect with ground plane
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const intersection = new THREE.Vector3();
+      raycaster.ray.intersectPlane(plane, intersection);
+      
+      if (intersection) {
+        return { x: intersection.x, z: intersection.z };
+      }
+      return null;
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      
+      const rect = container.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.setFromCamera(mouse, camera);
+      
+      const handlesGroup = handlesGroupRef.current;
+      if (!handlesGroup) return;
+      
+      const intersects = raycaster.intersectObjects(handlesGroup.children, true);
+      
+      for (const intersect of intersects) {
+        let obj: THREE.Object3D | null = intersect.object;
+        while (obj) {
+          if (obj.userData?.handleId) {
+            const handleId = obj.userData.handleId;
+            const worldPos = getWorldPosition(e);
+            if (worldPos) {
+              setActiveHandle(handleId);
+              isDraggingHandleRef.current = true;
+              dragStartRef.current = worldPos;
+              cornersStartRef.current = { ...pitchCorners };
+              e.stopPropagation();
+              e.preventDefault();
+            }
+            return;
+          }
+          obj = obj.parent;
+        }
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingHandleRef.current || !activeHandle || !dragStartRef.current || !cornersStartRef.current) return;
+
+      const worldPos = getWorldPosition(e);
+      if (!worldPos) return;
+
+      const deltaX = worldPos.x - dragStartRef.current.x;
+      const deltaZ = worldPos.z - dragStartRef.current.z;
+      const start = cornersStartRef.current;
+
+      let newCorners = { ...pitchCorners };
+
+      switch (activeHandle) {
+        case 'topLeft':
+          newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
+          break;
+        case 'topRight':
+          newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
+          break;
+        case 'bottomLeft':
+          newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
+          break;
+        case 'bottomRight':
+          newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
+          break;
+        case 'top':
+          newCorners.topLeft = { x: start.topLeft.x, z: start.topLeft.z + deltaZ };
+          newCorners.topRight = { x: start.topRight.x, z: start.topRight.z + deltaZ };
+          break;
+        case 'bottom':
+          newCorners.bottomLeft = { x: start.bottomLeft.x, z: start.bottomLeft.z + deltaZ };
+          newCorners.bottomRight = { x: start.bottomRight.x, z: start.bottomRight.z + deltaZ };
+          break;
+        case 'left':
+          newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z };
+          newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z };
+          break;
+        case 'right':
+          newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z };
+          newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z };
+          break;
+        case 'center':
+          newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
+          newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
+          newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
+          newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
+          break;
+      }
+
+      onPitchCornersChange?.(newCorners);
+    };
+
+    const handleMouseUp = () => {
+      if (isDraggingHandleRef.current) {
+        setActiveHandle(null);
+        isDraggingHandleRef.current = false;
+        dragStartRef.current = null;
+        cornersStartRef.current = null;
+      }
+    };
+
+    container.addEventListener('mousedown', handleMouseDown, { capture: true });
+    container.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      container.removeEventListener('mousedown', handleMouseDown, { capture: true });
+      container.removeEventListener('mousemove', handleMouseMove);
+      container.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isPitchManipulating, pitchCorners, activeHandle, onPitchCornersChange]);
 
   // Render calibration point markers on pitch
   useEffect(() => {

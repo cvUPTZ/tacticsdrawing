@@ -15,6 +15,7 @@ import { ToolPanel } from '@/components/analysis/ToolPanel';
 import { CalibrationPanel, CornerCalibrationPoint } from '@/components/analysis/CalibrationPanel';
 import { CalibrationPoint } from '@/components/analysis/PointCalibration';
 import { PitchTransform, DEFAULT_TRANSFORM } from '@/components/analysis/PitchTransformControls';
+import { PitchCorners, DEFAULT_CORNERS } from '@/components/analysis/PitchManipulator';
 import { AnnotationsList } from '@/components/analysis/AnnotationsList';
 import { ProjectsDialog } from '@/components/analysis/ProjectsDialog';
 import { HeatmapType } from '@/components/analysis/HeatmapOverlay';
@@ -151,9 +152,17 @@ export default function Index() {
   const [draggingCorner, setDraggingCorner] = useState<string | null>(null);
   const [heatmapType, setHeatmapType] = useState<HeatmapType>('none');
   const [pitchTransform, setPitchTransform] = useState<PitchTransform>(DEFAULT_TRANSFORM);
+  
+  // Pitch manipulation state
+  const [isPitchManipulating, setIsPitchManipulating] = useState(false);
+  const [pitchCorners, setPitchCorners] = useState<PitchCorners>(DEFAULT_CORNERS);
 
   const handlePitchTransformReset = useCallback(() => {
     setPitchTransform(DEFAULT_TRANSFORM);
+  }, []);
+
+  const handlePitchCornersReset = useCallback(() => {
+    setPitchCorners(DEFAULT_CORNERS);
   }, []);
 
   // Auto-calibrate from corner points
@@ -632,12 +641,15 @@ export default function Index() {
               calibration={calibration}
               annotations={annotations}
               toolMode={toolMode}
-              isInteractive={!isCornerCalibrating && toolMode !== 'select' && toolMode !== 'pan' && !!videoSrc}
+              isInteractive={!isCornerCalibrating && !isPitchManipulating && toolMode !== 'select' && toolMode !== 'pan' && !!videoSrc}
               onPitchClick={handlePitchClick}
               pitchScale={pitchScale}
               gridOverlay={gridOverlay}
               heatmapType={heatmapType}
               pitchTransform={pitchTransform}
+              pitchCorners={pitchCorners}
+              onPitchCornersChange={setPitchCorners}
+              isPitchManipulating={isPitchManipulating}
             />
             
             {/* Corner calibration markers - draggable */}
@@ -782,6 +794,11 @@ export default function Index() {
             pitchTransform={pitchTransform}
             onPitchTransformChange={setPitchTransform}
             onPitchTransformReset={handlePitchTransformReset}
+            isPitchManipulating={isPitchManipulating}
+            onTogglePitchManipulating={() => setIsPitchManipulating(!isPitchManipulating)}
+            pitchCorners={pitchCorners}
+            onPitchCornersChange={setPitchCorners}
+            onPitchCornersReset={handlePitchCornersReset}
           />
         </aside>
       </div>
