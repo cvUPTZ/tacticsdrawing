@@ -357,97 +357,26 @@ export function CalibrationPanel({
         </div>
       )}
 
-      {/* Pitch tab - MANUAL CONTROLS ALWAYS VISIBLE */}
+      {/* Pitch Scale sliders */}
+      {activeTab === "pitch" && onTogglePointCalibrating && (
+        <PointCalibration
+          isCalibrating={isPointCalibrating}
+          points={calibrationPoints}
+          activePointId={activeCalibrationPointId}
+          onToggleCalibrating={onTogglePointCalibrating}
+          onSetActivePoint={onSetActiveCalibrationPoint || (() => {})}
+          onAddPoint={onAddCalibrationPoint || (() => {})}
+          onRemovePoint={onRemoveCalibrationPoint || (() => {})}
+          onClearPoints={onClearCalibrationPoints || (() => {})}
+          onAutoCalibrate={onPointAutoCalibrate || (() => {})}
+        />
+      )}
+
       {activeTab === "pitch" && (
-        <div className="space-y-4">
-          {/* Manual Scale Controls - Always visible at the top */}
-          {onPitchScaleChange && (
-            <div className="space-y-3 p-3 rounded-md border-2 border-primary/20 bg-primary/5">
-              <div className="flex items-center gap-1.5">
-                <Maximize2 className="h-3.5 w-3.5 text-primary" />
-                <Label className="text-[11px] font-semibold text-foreground">Manual Pitch Scale</Label>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[10px] text-muted-foreground">Width Scale (stretch horizontal)</Label>
-                  <span className="text-[10px] font-mono text-foreground font-semibold">
-                    {(pitchScale.width * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <Slider
-                  value={[pitchScale.width * 100]}
-                  onValueChange={(v) => onPitchScaleChange({ ...pitchScale, width: v[0] / 100 })}
-                  min={50}
-                  max={200}
-                  step={5}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[10px] text-muted-foreground">Height Scale (stretch vertical)</Label>
-                  <span className="text-[10px] font-mono text-foreground font-semibold">
-                    {(pitchScale.height * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <Slider
-                  value={[pitchScale.height * 100]}
-                  onValueChange={(v) => onPitchScaleChange({ ...pitchScale, height: v[0] / 100 })}
-                  min={50}
-                  max={200}
-                  step={5}
-                />
-              </div>
-
-              {/* Quick presets */}
-              <div className="flex gap-1.5">
-                <Button
-                  onClick={() => onPitchScaleChange({ width: 1, height: 1 })}
-                  className="flex-1 h-6 text-[9px]"
-                  variant="outline"
-                >
-                  <RotateCcw className="h-3 w-3 mr-1" />
-                  Reset
-                </Button>
-                <Button
-                  onClick={() => onPitchScaleChange({ width: 1.2, height: 1 })}
-                  className="flex-1 h-6 text-[9px]"
-                  variant="outline"
-                >
-                  Wide
-                </Button>
-                <Button
-                  onClick={() => onPitchScaleChange({ width: 1, height: 1.2 })}
-                  className="flex-1 h-6 text-[9px]"
-                  variant="outline"
-                >
-                  Tall
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Point Calibration System - Below manual controls */}
-          {onTogglePointCalibrating && (
-            <div className="pt-2 border-t border-border">
-              <PointCalibration
-                isCalibrating={isPointCalibrating}
-                points={calibrationPoints}
-                activePointId={activeCalibrationPointId}
-                onToggleCalibrating={onTogglePointCalibrating}
-                onSetActivePoint={onSetActiveCalibrationPoint || (() => {})}
-                onAddPoint={onAddCalibrationPoint || (() => {})}
-                onRemovePoint={onRemoveCalibrationPoint || (() => {})}
-                onClearPoints={onClearCalibrationPoints || (() => {})}
-                onAutoCalibrate={onPointAutoCalibrate || (() => {})}
-              />
-            </div>
-          )}
-
+        <>
           {/* Manual Corner Calibration */}
           {onToggleCornerCalibrating && (
-            <div className="space-y-2 pt-2 border-t border-border">
+            <div className="space-y-2">
               <Button
                 onClick={onToggleCornerCalibrating}
                 variant={isCornerCalibrating ? "default" : "outline"}
@@ -506,7 +435,7 @@ export function CalibrationPanel({
 
           {/* Grid Overlay */}
           {onGridOverlayChange && (
-            <div className="space-y-2 pt-2 border-t border-border">
+            <div className="space-y-2">
               <Label className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1.5">
                 <Grid3X3 className="h-3 w-3" />
                 Grid Overlay
@@ -528,7 +457,7 @@ export function CalibrationPanel({
 
           {/* Heatmap Overlay */}
           {onHeatmapChange && (
-            <div className="space-y-2 pt-2 border-t border-border">
+            <div className="space-y-2">
               <Label className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1.5">
                 <Flame className="h-3 w-3" />
                 Heatmap
@@ -553,7 +482,65 @@ export function CalibrationPanel({
               </div>
             </div>
           )}
-        </div>
+
+          {/* Scale sliders */}
+          {onPitchScaleChange && (
+            <>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] text-muted-foreground">Width Scale (stretch horizontal)</Label>
+                  <span className="text-[10px] font-mono text-foreground">{(pitchScale.width * 100).toFixed(0)}%</span>
+                </div>
+                <Slider
+                  value={[pitchScale.width * 100]}
+                  onValueChange={(v) => onPitchScaleChange({ ...pitchScale, width: v[0] / 100 })}
+                  min={50}
+                  max={200}
+                  step={5}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] text-muted-foreground">Height Scale (stretch vertical)</Label>
+                  <span className="text-[10px] font-mono text-foreground">{(pitchScale.height * 100).toFixed(0)}%</span>
+                </div>
+                <Slider
+                  value={[pitchScale.height * 100]}
+                  onValueChange={(v) => onPitchScaleChange({ ...pitchScale, height: v[0] / 100 })}
+                  min={50}
+                  max={200}
+                  step={5}
+                />
+              </div>
+
+              {/* Quick presets */}
+              <div className="flex gap-1.5">
+                <Button
+                  onClick={() => onPitchScaleChange({ width: 1, height: 1 })}
+                  className="flex-1 h-6 text-[9px]"
+                  variant="outline"
+                >
+                  Reset
+                </Button>
+                <Button
+                  onClick={() => onPitchScaleChange({ width: 1.2, height: 1 })}
+                  className="flex-1 h-6 text-[9px]"
+                  variant="outline"
+                >
+                  Wide
+                </Button>
+                <Button
+                  onClick={() => onPitchScaleChange({ width: 1, height: 1.2 })}
+                  className="flex-1 h-6 text-[9px]"
+                  variant="outline"
+                >
+                  Tall
+                </Button>
+              </div>
+            </>
+          )}
+        </>
       )}
     </div>
   );
