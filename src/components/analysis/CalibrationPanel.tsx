@@ -9,6 +9,7 @@ import { GridOverlayType } from './ThreeCanvas';
 import { HeatmapType } from './HeatmapOverlay';
 import { CalibrationPreset } from '@/hooks/useCalibrationPresets';
 import { PointCalibration, CalibrationPoint } from './PointCalibration';
+import { PitchTransformControls, PitchTransform, DEFAULT_TRANSFORM } from './PitchTransformControls';
 
 interface PitchScale {
   width: number;
@@ -57,6 +58,10 @@ interface CalibrationPanelProps {
   onRemoveCalibrationPoint?: (id: string) => void;
   onClearCalibrationPoints?: () => void;
   onPointAutoCalibrate?: () => void;
+  // Pitch transform
+  pitchTransform?: PitchTransform;
+  onPitchTransformChange?: (transform: PitchTransform) => void;
+  onPitchTransformReset?: () => void;
 }
 
 const PRESETS = [
@@ -98,6 +103,9 @@ export function CalibrationPanel({
   onRemoveCalibrationPoint,
   onClearCalibrationPoints,
   onPointAutoCalibrate,
+  pitchTransform = DEFAULT_TRANSFORM,
+  onPitchTransformChange,
+  onPitchTransformReset,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<'position' | 'rotation' | 'pitch'>('position');
   const [newPresetName, setNewPresetName] = useState('');
@@ -396,8 +404,15 @@ export function CalibrationPanel({
           onAutoCalibrate={onPointAutoCalibrate || (() => {})}
         />
       )}
+      {activeTab === 'pitch' && onPitchTransformChange && (
+        <PitchTransformControls
+          transform={pitchTransform}
+          onChange={onPitchTransformChange}
+          onReset={onPitchTransformReset || (() => {})}
+        />
+      )}
       {activeTab === 'pitch' && (
-        <div className="space-y-3">
+        <div className="space-y-3 pt-2 border-t border-border/50">
           {/* Manual Corner Calibration */}
           {onToggleCornerCalibrating && (
             <div className="space-y-2">
