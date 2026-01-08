@@ -8,7 +8,6 @@ import { useState } from "react";
 import { GridOverlayType } from "./ThreeCanvas";
 import { HeatmapType } from "./HeatmapOverlay";
 import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
-import { PointCalibration, CalibrationPoint } from "./PointCalibration";
 import { DirectPitchManipulation, PitchControlPoint } from "./DirectPitchManipulation";
 
 interface PitchScale {
@@ -46,15 +45,7 @@ interface CalibrationPanelProps {
   onDeletePreset?: (id: string) => void;
   heatmapType?: HeatmapType;
   onHeatmapChange?: (type: HeatmapType) => void;
-  isPointCalibrating?: boolean;
-  onTogglePointCalibrating?: () => void;
-  calibrationPoints?: CalibrationPoint[];
-  activeCalibrationPointId?: string | null;
-  onSetActiveCalibrationPoint?: (id: string | null) => void;
-  onAddCalibrationPoint?: (point: CalibrationPoint) => void;
-  onRemoveCalibrationPoint?: (id: string) => void;
-  onClearCalibrationPoints?: () => void;
-  onPointAutoCalibrate?: () => void;
+  // Direct pitch manipulation
   isDirectManipulating?: boolean;
   onToggleDirectManipulating?: () => void;
   pitchControlPoints?: PitchControlPoint[];
@@ -96,15 +87,6 @@ export function CalibrationPanel({
   onDeletePreset,
   heatmapType = "none",
   onHeatmapChange,
-  isPointCalibrating = false,
-  onTogglePointCalibrating,
-  calibrationPoints = [],
-  activeCalibrationPointId,
-  onSetActiveCalibrationPoint,
-  onAddCalibrationPoint,
-  onRemoveCalibrationPoint,
-  onClearCalibrationPoints,
-  onPointAutoCalibrate,
   isDirectManipulating = false,
   onToggleDirectManipulating,
   pitchControlPoints = [],
@@ -368,6 +350,7 @@ export function CalibrationPanel({
 
       {activeTab === "pitch" && (
         <div className="space-y-3">
+          {/* DIRECT PITCH MANIPULATION - NEW FEATURE */}
           {onToggleDirectManipulating && (
             <DirectPitchManipulation
               isManipulating={isDirectManipulating}
@@ -382,20 +365,7 @@ export function CalibrationPanel({
             />
           )}
 
-          {onTogglePointCalibrating && (
-            <PointCalibration
-              isCalibrating={isPointCalibrating}
-              points={calibrationPoints}
-              activePointId={activeCalibrationPointId}
-              onToggleCalibrating={onTogglePointCalibrating}
-              onSetActivePoint={onSetActiveCalibrationPoint || (() => {})}
-              onAddPoint={onAddCalibrationPoint || (() => {})}
-              onRemovePoint={onRemoveCalibrationPoint || (() => {})}
-              onClearPoints={onClearCalibrationPoints || (() => {})}
-              onAutoCalibrate={onPointAutoCalibrate || (() => {})}
-            />
-          )}
-
+          {/* Manual Corner Calibration */}
           {onToggleCornerCalibrating && (
             <div className="space-y-2">
               <Button
@@ -453,6 +423,7 @@ export function CalibrationPanel({
             </div>
           )}
 
+          {/* Grid Overlay */}
           {onGridOverlayChange && (
             <div className="space-y-2">
               <Label className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1.5">
@@ -474,6 +445,7 @@ export function CalibrationPanel({
             </div>
           )}
 
+          {/* Heatmap Overlay */}
           {onHeatmapChange && (
             <div className="space-y-2">
               <Label className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1.5">
@@ -501,6 +473,7 @@ export function CalibrationPanel({
             </div>
           )}
 
+          {/* Manual Scale sliders */}
           {onPitchScaleChange && (
             <>
               <div className="space-y-1.5">
