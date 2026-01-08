@@ -14,6 +14,7 @@ import { BottomBar } from '@/components/analysis/BottomBar';
 import { ToolPanel } from '@/components/analysis/ToolPanel';
 import { CalibrationPanel, CornerCalibrationPoint } from '@/components/analysis/CalibrationPanel';
 import { CalibrationPoint } from '@/components/analysis/PointCalibration';
+import { PitchTransform, DEFAULT_TRANSFORM } from '@/components/analysis/PitchTransformControls';
 import { AnnotationsList } from '@/components/analysis/AnnotationsList';
 import { ProjectsDialog } from '@/components/analysis/ProjectsDialog';
 import { HeatmapType } from '@/components/analysis/HeatmapOverlay';
@@ -149,6 +150,11 @@ export default function Index() {
   const [gridOverlay, setGridOverlay] = useState<GridOverlayType>('none');
   const [draggingCorner, setDraggingCorner] = useState<string | null>(null);
   const [heatmapType, setHeatmapType] = useState<HeatmapType>('none');
+  const [pitchTransform, setPitchTransform] = useState<PitchTransform>(DEFAULT_TRANSFORM);
+
+  const handlePitchTransformReset = useCallback(() => {
+    setPitchTransform(DEFAULT_TRANSFORM);
+  }, []);
 
   // Auto-calibrate from corner points
   const handleAutoCalibrate = useCallback(() => {
@@ -631,6 +637,7 @@ export default function Index() {
               pitchScale={pitchScale}
               gridOverlay={gridOverlay}
               heatmapType={heatmapType}
+              pitchTransform={pitchTransform}
             />
             
             {/* Corner calibration markers - draggable */}
@@ -772,6 +779,9 @@ export default function Index() {
             }}
             heatmapType={heatmapType}
             onHeatmapChange={setHeatmapType}
+            pitchTransform={pitchTransform}
+            onPitchTransformChange={setPitchTransform}
+            onPitchTransformReset={handlePitchTransformReset}
           />
         </aside>
       </div>

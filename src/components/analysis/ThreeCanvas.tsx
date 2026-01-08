@@ -4,6 +4,7 @@ import { Annotation, CalibrationState, ToolMode, Vector3 } from '@/types/analysi
 import { HeatmapType, HeatmapOverlay, getHeatmapColor } from './HeatmapOverlay';
 import { createSOTAPitch, PITCH_REFERENCE_POINTS } from './SOTAPitch';
 import { CalibrationPoint } from './PointCalibration';
+import { PitchTransform, DEFAULT_TRANSFORM } from './PitchTransformControls';
 
 interface PitchScale {
   width: number;
@@ -24,6 +25,7 @@ interface ThreeCanvasProps {
   useSOTAPitch?: boolean;
   calibrationPoints?: CalibrationPoint[];
   activeCalibrationPointId?: string | null;
+  pitchTransform?: PitchTransform;
 }
 
 interface LabelData {
@@ -73,6 +75,7 @@ export function ThreeCanvas({
   useSOTAPitch = true,
   calibrationPoints = [],
   activeCalibrationPointId = null,
+  pitchTransform = DEFAULT_TRANSFORM,
 }: ThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -345,7 +348,12 @@ export function ThreeCanvas({
       circle.position.y = 0.01;
       pitchGroup.add(circle);
     }
-  }, [pitchScale, useSOTAPitch]);
+
+    // Apply pitch transform
+    pitchGroup.position.set(pitchTransform.positionX, pitchTransform.positionY, pitchTransform.positionZ);
+    pitchGroup.rotation.set(pitchTransform.rotationX, pitchTransform.rotationY, pitchTransform.rotationZ);
+    pitchGroup.scale.set(pitchTransform.scaleX, pitchTransform.scaleY, pitchTransform.scaleZ);
+  }, [pitchScale, useSOTAPitch, pitchTransform]);
 
   // Render calibration point markers on pitch
   useEffect(() => {

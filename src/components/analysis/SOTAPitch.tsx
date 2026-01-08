@@ -141,16 +141,19 @@ export function createSOTAPitch(pitchScale: PitchScale): THREE.Group {
   group.add(createLine(rightSpotPoints));
 
   // === PENALTY ARCS ===
+  // Arc is drawn outside the penalty box, centered on penalty spot
   const arcRadius = 9.15 * pitchScale.width;
-  const distFromSpotToBoxEdge = penaltyDepth - penaltySpotDist;
+  const distFromSpotToBoxEdge = penaltyDepth - penaltySpotDist; // ~5.5m
+  // Calculate the angle where arc intersects penalty box edge
   const arcAngle = Math.acos(distFromSpotToBoxEdge / arcRadius);
 
-  // Left arc
+  // Left arc - faces RIGHT (toward center), outside penalty box
   const leftArcPoints: THREE.Vector3[] = [];
   const arcSegments = 32;
   for (let i = 0; i <= arcSegments; i++) {
     const t = i / arcSegments;
-    const angle = (Math.PI / 2 - arcAngle) + t * (arcAngle * 2);
+    // Arc from -arcAngle to +arcAngle, facing right (0 radians = right)
+    const angle = -arcAngle + t * (arcAngle * 2);
     leftArcPoints.push(new THREE.Vector3(
       -pw / 2 + penaltySpotDist + Math.cos(angle) * arcRadius,
       0.01,
@@ -159,11 +162,12 @@ export function createSOTAPitch(pitchScale: PitchScale): THREE.Group {
   }
   group.add(createLine(leftArcPoints));
 
-  // Right arc
+  // Right arc - faces LEFT (toward center), outside penalty box
   const rightArcPoints: THREE.Vector3[] = [];
   for (let i = 0; i <= arcSegments; i++) {
     const t = i / arcSegments;
-    const angle = (-Math.PI / 2 - arcAngle) + t * (arcAngle * 2);
+    // Arc from PI-arcAngle to PI+arcAngle, facing left (PI radians = left)
+    const angle = (Math.PI - arcAngle) + t * (arcAngle * 2);
     rightArcPoints.push(new THREE.Vector3(
       pw / 2 - penaltySpotDist + Math.cos(angle) * arcRadius,
       0.01,
