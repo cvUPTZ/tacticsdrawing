@@ -16,6 +16,7 @@ import { CalibrationPanel, CornerCalibrationPoint } from '@/components/analysis/
 import { CalibrationPoint } from '@/components/analysis/PointCalibration';
 import { PitchTransform, DEFAULT_TRANSFORM } from '@/components/analysis/PitchTransformControls';
 import { PitchCorners, DEFAULT_CORNERS } from '@/components/analysis/PitchManipulator';
+import { PitchControlPoint, DEFAULT_PITCH_CONTROL_POINTS, generateGridControlPoints } from '@/components/analysis/DirectPitchManipulation';
 import { AnnotationsList } from '@/components/analysis/AnnotationsList';
 import { ProjectsDialog } from '@/components/analysis/ProjectsDialog';
 import { HeatmapType } from '@/components/analysis/HeatmapOverlay';
@@ -157,12 +158,45 @@ export default function Index() {
   const [isPitchManipulating, setIsPitchManipulating] = useState(false);
   const [pitchCorners, setPitchCorners] = useState<PitchCorners>(DEFAULT_CORNERS);
 
+  // Direct Pitch Manipulation state - NEW
+  const [isDirectManipulating, setIsDirectManipulating] = useState(false);
+  const [pitchControlPoints, setPitchControlPoints] = useState<PitchControlPoint[]>(DEFAULT_PITCH_CONTROL_POINTS);
+  const [activeControlPointId, setActiveControlPointId] = useState<string | null>(null);
+
   const handlePitchTransformReset = useCallback(() => {
     setPitchTransform(DEFAULT_TRANSFORM);
   }, []);
 
   const handlePitchCornersReset = useCallback(() => {
     setPitchCorners(DEFAULT_CORNERS);
+  }, []);
+
+  // Direct Pitch Manipulation handlers - NEW
+  const handleUpdateControlPoint = useCallback((id: string, pitchX: number, pitchZ: number) => {
+    setPitchControlPoints(prev =>
+      prev.map(p => p.id === id ? { ...p, adjustedX: pitchX, adjustedZ: pitchZ } : p)
+    );
+    setActiveControlPointId(null); // Auto-deselect after placing
+    toast.success('Control point updated');
+  }, []);
+
+  const handleResetControlPoint = useCallback((id: string) => {
+    setPitchControlPoints(prev =>
+      prev.map(p => p.id === id ? { ...p, adjustedX: undefined, adjustedZ: undefined } : p)
+    );
+    toast.success('Control point reset');
+  }, []);
+
+  const handleResetAllControlPoints = useCallback(() => {
+    setPitchControlPoints(prev =>
+      prev.map(p => ({ ...p, adjustedX: undefined, adjustedZ: undefined }))
+    );
+    toast.success('All control points reset');
+  }, []);
+
+  const handleAddGridPoints = useCallback(() => {
+    setPitchControlPoints(generateGridControlPoints('medium'));
+    toast.success('Added grid control points for precise warping');
   }, []);
 
   // Auto-calibrate from corner points
@@ -361,6 +395,12 @@ export default function Index() {
   }, [loadVideo, currentProject, createProject, updateProject]);
 
   const handlePitchClick = useCallback((position: Vector3) => {
+    // Handle Direct Pitch Manipulation clicks - NEW
+    if (isDirectManipulating && activeControlPointId) {
+      handleUpdateControlPoint(activeControlPointId, position.x, position.z);
+      return;
+    }
+
     // Two-point tools (arrows, lines, etc.)
     const twoPointTools: ToolMode[] = [
       'arrow', 'line', 'offside', 'distance',
@@ -470,7 +510,7 @@ export default function Index() {
         setSelectedPlayerIds([]);
       }
     }
-  }, [toolMode, arrowStartPosition, addAnnotation, videoState.currentTime, isDrawingFreehand, isDashed, updateAnnotation, playerCounter, annotations, zoneShape]);
+  }, [toolMode, arrowStartPosition, addAnnotation, videoState.currentTime, isDrawingFreehand, isDashed, updateAnnotation, playerCounter, annotations, zoneShape, isDirectManipulating, activeControlPointId, handleUpdateControlPoint]);
 
   // Finalize freehand/curve when tool changes
   useEffect(() => {
@@ -547,6 +587,15 @@ export default function Index() {
   }
 
   const getToolModeLabel = () => {
+    // Direct manipulation mode label - NEW
+    if (isDirectManipulating) {
+      if (activeControlPointId) {
+        const point = pitchControlPoints.find(p => p.id === activeControlPointId);
+        return `Click pitch to move: ${point?.label || 'control point'}`;
+      }
+      return 'Select a control point, then click pitch to move it';
+    }
+
     switch (toolMode) {
       case 'player': return 'Click to place player marker';
       case 'arrow': return arrowStartPosition ? 'Click end point' : 'Click start point';
@@ -650,6 +699,9 @@ export default function Index() {
               pitchCorners={pitchCorners}
               onPitchCornersChange={setPitchCorners}
               isPitchManipulating={isPitchManipulating}
+              isDirectManipulating={isDirectManipulating}
+              pitchControlPoints={pitchControlPoints}
+              activeControlPointId={activeControlPointId}
             />
             
             {/* Corner calibration markers - draggable */}
@@ -713,9 +765,20 @@ export default function Index() {
                 </span>
               </div>
             )}
+
+            {/* Direct Pitch Manipulation mode indicator - NEW */}
+            {isDirectManipulating && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-full flex items-center gap-3 fade-in z-30">
+                <div className="w-3 h-3 rounded-full bg-accent animate-pulse" />
+                <span className="text-sm font-medium">Direct Pitch Manipulation</span>
+                <span className="text-xs text-muted-foreground">
+                  {getToolModeLabel()}
+                </span>
+              </div>
+            )}
             
             {/* Tool mode indicator */}
-            {!isCornerCalibrating && toolMode !== 'select' && toolMode !== 'pan' && videoSrc && (
+            {!isCornerCalibrating && !isDirectManipulating && toolMode !== 'select' && toolMode !== 'pan' && videoSrc && (
               <div className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-full flex items-center gap-3 fade-in">
                 <div 
                   className="w-3 h-3 rounded-full animate-pulse"
@@ -728,7 +791,7 @@ export default function Index() {
             )}
 
             {/* Player counter */}
-            {!isCornerCalibrating && toolMode === 'player' && videoSrc && (
+            {!isCornerCalibrating && !isDirectManipulating && toolMode === 'player' && videoSrc && (
               <div className="absolute top-16 left-1/2 -translate-x-1/2 glass-panel px-3 py-1 rounded-full">
                 <span className="text-xs text-muted-foreground">Next: Player #{playerCounter}</span>
               </div>
@@ -791,14 +854,15 @@ export default function Index() {
             }}
             heatmapType={heatmapType}
             onHeatmapChange={setHeatmapType}
-            pitchTransform={pitchTransform}
-            onPitchTransformChange={setPitchTransform}
-            onPitchTransformReset={handlePitchTransformReset}
-            isPitchManipulating={isPitchManipulating}
-            onTogglePitchManipulating={() => setIsPitchManipulating(!isPitchManipulating)}
-            pitchCorners={pitchCorners}
-            onPitchCornersChange={setPitchCorners}
-            onPitchCornersReset={handlePitchCornersReset}
+            isDirectManipulating={isDirectManipulating}
+            onToggleDirectManipulating={() => setIsDirectManipulating(!isDirectManipulating)}
+            pitchControlPoints={pitchControlPoints}
+            activeControlPointId={activeControlPointId}
+            onSetActiveControlPoint={setActiveControlPointId}
+            onUpdateControlPoint={handleUpdateControlPoint}
+            onResetControlPoint={handleResetControlPoint}
+            onResetAllControlPoints={handleResetAllControlPoints}
+            onAddGridPoints={handleAddGridPoints}
           />
         </aside>
       </div>
