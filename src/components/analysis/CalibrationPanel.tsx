@@ -3,13 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { CalibrationState } from '@/types/analysis';
-import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, Grid3X3, Wand2, Save, Trash2, Flame } from 'lucide-react';
+import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, Grid3X3, Wand2, Save, Trash2, Flame, Hand } from 'lucide-react';
 import { useState } from 'react';
 import { GridOverlayType } from './ThreeCanvas';
 import { HeatmapType } from './HeatmapOverlay';
 import { CalibrationPreset } from '@/hooks/useCalibrationPresets';
 import { PointCalibration, CalibrationPoint } from './PointCalibration';
 import { PitchTransformControls, PitchTransform, DEFAULT_TRANSFORM } from './PitchTransformControls';
+import { PitchCorners, DEFAULT_CORNERS } from './PitchManipulator';
 
 interface PitchScale {
   width: number;
@@ -62,6 +63,12 @@ interface CalibrationPanelProps {
   pitchTransform?: PitchTransform;
   onPitchTransformChange?: (transform: PitchTransform) => void;
   onPitchTransformReset?: () => void;
+  // Pitch manipulation (direct corner dragging)
+  isPitchManipulating?: boolean;
+  onTogglePitchManipulating?: () => void;
+  pitchCorners?: PitchCorners;
+  onPitchCornersChange?: (corners: PitchCorners) => void;
+  onPitchCornersReset?: () => void;
 }
 
 const PRESETS = [
@@ -106,6 +113,11 @@ export function CalibrationPanel({
   pitchTransform = DEFAULT_TRANSFORM,
   onPitchTransformChange,
   onPitchTransformReset,
+  isPitchManipulating = false,
+  onTogglePitchManipulating,
+  pitchCorners = DEFAULT_CORNERS,
+  onPitchCornersChange,
+  onPitchCornersReset,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<'position' | 'rotation' | 'pitch'>('position');
   const [newPresetName, setNewPresetName] = useState('');
@@ -404,7 +416,41 @@ export function CalibrationPanel({
           onAutoCalibrate={onPointAutoCalibrate || (() => {})}
         />
       )}
-      {activeTab === 'pitch' && onPitchTransformChange && (
+      {activeTab === 'pitch' && onTogglePitchManipulating && (
+        <div className="space-y-2 p-2 bg-accent/10 rounded-md border border-accent/30">
+          <div className="flex items-center justify-between">
+            <Label className="text-[10px] text-foreground flex items-center gap-1">
+              <Hand className="h-3 w-3" />
+              Direct Pitch Manipulation
+            </Label>
+            <Button
+              variant={isPitchManipulating ? "default" : "outline"}
+              size="sm"
+              onClick={onTogglePitchManipulating}
+              className="h-6 text-[9px]"
+            >
+              {isPitchManipulating ? 'Done' : 'Edit'}
+            </Button>
+          </div>
+          {isPitchManipulating && (
+            <div className="space-y-2">
+              <p className="text-[9px] text-muted-foreground">
+                Drag corners, edges, or center to stretch/move the pitch outline.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onPitchCornersReset}
+                className="w-full h-6 text-[9px] gap-1"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset Pitch Shape
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+      {activeTab === 'pitch' && onPitchTransformChange && !isPitchManipulating && (
         <PitchTransformControls
           transform={pitchTransform}
           onChange={onPitchTransformChange}
