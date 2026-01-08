@@ -9,7 +9,7 @@ import { GridOverlayType } from "./ThreeCanvas";
 import { HeatmapType } from "./HeatmapOverlay";
 import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
 import { DirectPitchManipulation, PitchControlPoint } from "./DirectPitchManipulation";
-import { RealTimePitchDrawing, FieldPoint } from "./RealTimePitchDrawing";
+import { SmartFieldPoints, FieldPoint } from "./SmartFieldPoints";
 
 interface PitchScale {
   width: number;
@@ -56,13 +56,15 @@ interface CalibrationPanelProps {
   onResetControlPoint?: (id: string) => void;
   onResetAllControlPoints?: () => void;
   onAddGridPoints?: () => void;
-  // Real-time pitch drawing
-  isRealTimeDrawing?: boolean;
-  onToggleRealTimeDrawing?: () => void;
+  // Smart Field Points (replaces RealTimePitchDrawing)
+  isFieldMapping?: boolean;
+  onToggleFieldMapping?: () => void;
   fieldPoints?: FieldPoint[];
   activeFieldPointId?: string | null;
   onSetActiveFieldPoint?: (id: string | null) => void;
+  onUpdateFieldPoint?: (id: string, screenX: number, screenY: number) => void;
   onResetFieldPoints?: () => void;
+  onToggleFieldPointVisibility?: (id: string) => void;
 }
 
 const PRESETS = [
@@ -104,12 +106,14 @@ export function CalibrationPanel({
   onResetControlPoint,
   onResetAllControlPoints,
   onAddGridPoints,
-  isRealTimeDrawing = false,
-  onToggleRealTimeDrawing,
+  isFieldMapping = false,
+  onToggleFieldMapping,
   fieldPoints = [],
   activeFieldPointId,
   onSetActiveFieldPoint,
+  onUpdateFieldPoint,
   onResetFieldPoints,
+  onToggleFieldPointVisibility,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<"position" | "rotation" | "pitch">("position");
   const [newPresetName, setNewPresetName] = useState("");
@@ -364,15 +368,17 @@ export function CalibrationPanel({
 
       {activeTab === "pitch" && (
         <div className="space-y-3">
-          {/* REAL-TIME PITCH DRAWING - NEWEST FEATURE */}
-          {onToggleRealTimeDrawing && (
-            <RealTimePitchDrawing
-              isActive={isRealTimeDrawing}
-              onToggle={onToggleRealTimeDrawing}
+          {/* SMART FIELD POINTS - Handles partial visibility */}
+          {onToggleFieldMapping && (
+            <SmartFieldPoints
+              isActive={isFieldMapping}
+              onToggle={onToggleFieldMapping}
               fieldPoints={fieldPoints}
               activePointId={activeFieldPointId}
               onSetActivePoint={onSetActiveFieldPoint || (() => {})}
+              onUpdatePoint={onUpdateFieldPoint || (() => {})}
               onResetPoints={onResetFieldPoints || (() => {})}
+              onToggleVisibility={onToggleFieldPointVisibility || (() => {})}
             />
           )}
 
