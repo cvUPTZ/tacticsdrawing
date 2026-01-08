@@ -9,7 +9,7 @@ import { GridOverlayType } from "./ThreeCanvas";
 import { HeatmapType } from "./HeatmapOverlay";
 import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
 import { DirectPitchManipulation, PitchControlPoint } from "./DirectPitchManipulation";
-import { SmartFieldPoints, FieldPoint } from "./SmartFieldPoints";
+import { SmartFieldPoints, FieldPoint } from "./SmartFieldpoints";
 
 interface PitchScale {
   width: number;
