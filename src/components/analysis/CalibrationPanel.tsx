@@ -9,6 +9,7 @@ import { GridOverlayType } from "./ThreeCanvas";
 import { HeatmapType } from "./HeatmapOverlay";
 import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
 import { DirectPitchManipulation, PitchControlPoint } from "./DirectPitchManipulation";
+import { RealTimePitchDrawing, FieldPoint } from "./RealTimePitchDrawing";
 
 interface PitchScale {
   width: number;
@@ -55,6 +56,13 @@ interface CalibrationPanelProps {
   onResetControlPoint?: (id: string) => void;
   onResetAllControlPoints?: () => void;
   onAddGridPoints?: () => void;
+  // Real-time pitch drawing
+  isRealTimeDrawing?: boolean;
+  onToggleRealTimeDrawing?: () => void;
+  fieldPoints?: FieldPoint[];
+  activeFieldPointId?: string | null;
+  onSetActiveFieldPoint?: (id: string | null) => void;
+  onResetFieldPoints?: () => void;
 }
 
 const PRESETS = [
@@ -96,6 +104,12 @@ export function CalibrationPanel({
   onResetControlPoint,
   onResetAllControlPoints,
   onAddGridPoints,
+  isRealTimeDrawing = false,
+  onToggleRealTimeDrawing,
+  fieldPoints = [],
+  activeFieldPointId,
+  onSetActiveFieldPoint,
+  onResetFieldPoints,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<"position" | "rotation" | "pitch">("position");
   const [newPresetName, setNewPresetName] = useState("");
@@ -350,7 +364,19 @@ export function CalibrationPanel({
 
       {activeTab === "pitch" && (
         <div className="space-y-3">
-          {/* DIRECT PITCH MANIPULATION - NEW FEATURE */}
+          {/* REAL-TIME PITCH DRAWING - NEWEST FEATURE */}
+          {onToggleRealTimeDrawing && (
+            <RealTimePitchDrawing
+              isActive={isRealTimeDrawing}
+              onToggle={onToggleRealTimeDrawing}
+              fieldPoints={fieldPoints}
+              activePointId={activeFieldPointId}
+              onSetActivePoint={onSetActiveFieldPoint || (() => {})}
+              onResetPoints={onResetFieldPoints || (() => {})}
+            />
+          )}
+
+          {/* DIRECT PITCH MANIPULATION */}
           {onToggleDirectManipulating && (
             <DirectPitchManipulation
               isManipulating={isDirectManipulating}
