@@ -1,34 +1,27 @@
-This is the complete, single-file code. I have preserved every original feature, prop, and logic block while integrating the Direct Pitch Manipulation interface into the "Pitch" tab.
-
-code
-Tsx
-download
-content_copy
-expand_less
-import { Slider } from '@/components/ui/slider';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { CalibrationState } from '@/types/analysis';
-import { 
-  RotateCcw, 
-  Camera, 
-  Move3D, 
-  Maximize2, 
-  MousePointer2, 
-  Grid3X3, 
-  Wand2, 
-  Save, 
-  Trash2, 
+import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { CalibrationState } from "@/types/analysis";
+import {
+  RotateCcw,
+  Camera,
+  Move3D,
+  Maximize2,
+  MousePointer2,
+  Grid3X3,
+  Wand2,
+  Save,
+  Trash2,
   Flame,
   Grab,
-  MousePointerClick
-} from 'lucide-react';
-import { useState } from 'react';
-import { GridOverlayType } from './ThreeCanvas';
-import { HeatmapType } from './HeatmapOverlay';
-import { CalibrationPreset } from '@/hooks/useCalibrationPresets';
-import { PointCalibration, CalibrationPoint } from './PointCalibration';
+  MousePointerClick,
+} from "lucide-react";
+import { useState } from "react";
+import { GridOverlayType } from "./ThreeCanvas";
+import { HeatmapType } from "./HeatmapOverlay";
+import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
+import { PointCalibration, CalibrationPoint } from "./PointCalibration";
 
 interface PitchScale {
   width: number;
@@ -36,7 +29,7 @@ interface PitchScale {
 }
 
 export interface CornerCalibrationPoint {
-  id: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
+  id: "topLeft" | "topRight" | "bottomLeft" | "bottomRight";
   label: string;
   screenX?: number;
   screenY?: number;
@@ -48,7 +41,7 @@ interface CalibrationPanelProps {
   onUpdate: (updates: Partial<CalibrationState>) => void;
   onReset: () => void;
   onToggleCalibrating: () => void;
-  onApplyPreset: (preset: 'broadcast' | 'tactical' | 'sideline' | 'behindGoal') => void;
+  onApplyPreset: (preset: "broadcast" | "tactical" | "sideline" | "behindGoal") => void;
   pitchScale?: PitchScale;
   onPitchScaleChange?: (scale: PitchScale) => void;
   // Direct Pitch Manipulation Props
@@ -84,10 +77,10 @@ interface CalibrationPanelProps {
 }
 
 const PRESETS = [
-  { id: 'broadcast' as const, label: 'Broadcast' },
-  { id: 'tactical' as const, label: 'Tactical' },
-  { id: 'sideline' as const, label: 'Sideline' },
-  { id: 'behindGoal' as const, label: 'Behind Goal' },
+  { id: "broadcast" as const, label: "Broadcast" },
+  { id: "tactical" as const, label: "Tactical" },
+  { id: "sideline" as const, label: "Sideline" },
+  { id: "behindGoal" as const, label: "Behind Goal" },
 ];
 
 export function CalibrationPanel({
@@ -107,13 +100,13 @@ export function CalibrationPanel({
   activeCorner,
   onSetActiveCorner,
   onAutoCalibrate,
-  gridOverlay = 'none',
+  gridOverlay = "none",
   onGridOverlayChange,
   customPresets = [],
   onSavePreset,
   onLoadPreset,
   onDeletePreset,
-  heatmapType = 'none',
+  heatmapType = "none",
   onHeatmapChange,
   isPointCalibrating = false,
   onTogglePointCalibrating,
@@ -125,17 +118,17 @@ export function CalibrationPanel({
   onClearCalibrationPoints,
   onPointAutoCalibrate,
 }: CalibrationPanelProps) {
-  const [activeTab, setActiveTab] = useState<'position' | 'rotation' | 'pitch'>('position');
-  const [newPresetName, setNewPresetName] = useState('');
-  
+  const [activeTab, setActiveTab] = useState<"position" | "rotation" | "pitch">("position");
+  const [newPresetName, setNewPresetName] = useState("");
+
   const radToDeg = (rad: number) => (rad * (180 / Math.PI)).toFixed(1);
   const degToRad = (deg: number) => deg * (Math.PI / 180);
 
   const cornerLabels = [
-    { id: 'topLeft', label: 'Top Left', icon: '↖' },
-    { id: 'topRight', label: 'Top Right', icon: '↗' },
-    { id: 'bottomLeft', label: 'Bottom Left', icon: '↙' },
-    { id: 'bottomRight', label: 'Bottom Right', icon: '↘' },
+    { id: "topLeft", label: "Top Left", icon: "↖" },
+    { id: "topRight", label: "Top Right", icon: "↗" },
+    { id: "bottomLeft", label: "Bottom Left", icon: "↙" },
+    { id: "bottomRight", label: "Bottom Right", icon: "↘" },
   ];
 
   return (
@@ -145,13 +138,7 @@ export function CalibrationPanel({
           <Camera className="h-4 w-4 text-primary" />
           <span className="hud-text text-[10px] font-bold uppercase tracking-wider">Camera Calibration</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onReset}
-          className="h-6 w-6"
-          title="Reset calibration"
-        >
+        <Button variant="ghost" size="icon" onClick={onReset} className="h-6 w-6" title="Reset calibration">
           <RotateCcw className="h-3 w-3" />
         </Button>
       </div>
@@ -191,7 +178,7 @@ export function CalibrationPanel({
               onClick={() => {
                 if (newPresetName.trim()) {
                   onSavePreset(newPresetName.trim());
-                  setNewPresetName('');
+                  setNewPresetName("");
                 }
               }}
               disabled={!newPresetName.trim()}
@@ -230,33 +217,33 @@ export function CalibrationPanel({
       {/* Tab switcher */}
       <div className="flex gap-1 p-0.5 bg-muted rounded-md">
         <button
-          onClick={() => setActiveTab('position')}
+          onClick={() => setActiveTab("position")}
           className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[10px] font-medium transition-colors ${
-            activeTab === 'position' 
-              ? 'bg-background text-foreground shadow-sm' 
-              : 'text-muted-foreground hover:text-foreground'
+            activeTab === "position"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           <Camera className="h-3 w-3" />
           Position
         </button>
         <button
-          onClick={() => setActiveTab('rotation')}
+          onClick={() => setActiveTab("rotation")}
           className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[10px] font-medium transition-colors ${
-            activeTab === 'rotation' 
-              ? 'bg-background text-foreground shadow-sm' 
-              : 'text-muted-foreground hover:text-foreground'
+            activeTab === "rotation"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           <Move3D className="h-3 w-3" />
           Rotation
         </button>
         <button
-          onClick={() => setActiveTab('pitch')}
+          onClick={() => setActiveTab("pitch")}
           className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[10px] font-medium transition-colors ${
-            activeTab === 'pitch' 
-              ? 'bg-background text-foreground shadow-sm' 
-              : 'text-muted-foreground hover:text-foreground'
+            activeTab === "pitch"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           <Maximize2 className="h-3 w-3" />
@@ -265,7 +252,7 @@ export function CalibrationPanel({
       </div>
 
       {/* Position sliders */}
-      {activeTab === 'position' && (
+      {activeTab === "position" && (
         <div className="space-y-3">
           <div className="space-y-1">
             <div className="flex justify-between">
@@ -326,15 +313,17 @@ export function CalibrationPanel({
       )}
 
       {/* Rotation sliders */}
-      {activeTab === 'rotation' && (
+      {activeTab === "rotation" && (
         <div className="space-y-3">
           <div className="space-y-1">
             <div className="flex justify-between">
               <Label className="text-[10px] text-muted-foreground">
-                Pitch (X) 
+                Pitch (X)
                 <span className="text-[8px] ml-1 opacity-60">tilt up/down</span>
               </Label>
-              <span className="text-[10px] font-mono text-muted-foreground">{radToDeg(calibration.cameraRotationX)}°</span>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {radToDeg(calibration.cameraRotationX)}°
+              </span>
             </div>
             <Slider
               value={[calibration.cameraRotationX]}
@@ -351,7 +340,9 @@ export function CalibrationPanel({
                 Yaw (Y)
                 <span className="text-[8px] ml-1 opacity-60">turn left/right</span>
               </Label>
-              <span className="text-[10px] font-mono text-muted-foreground">{radToDeg(calibration.cameraRotationY)}°</span>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {radToDeg(calibration.cameraRotationY)}°
+              </span>
             </div>
             <Slider
               value={[calibration.cameraRotationY]}
@@ -368,7 +359,9 @@ export function CalibrationPanel({
                 Roll (Z)
                 <span className="text-[8px] ml-1 opacity-60">tilt side</span>
               </Label>
-              <span className="text-[10px] font-mono text-muted-foreground">{radToDeg(calibration.cameraRotationZ)}°</span>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {radToDeg(calibration.cameraRotationZ)}°
+              </span>
             </div>
             <Slider
               value={[calibration.cameraRotationZ]}
@@ -380,13 +373,28 @@ export function CalibrationPanel({
           </div>
 
           <div className="flex gap-1 pt-2">
-            <Button variant="outline" size="sm" onClick={() => onUpdate({ cameraRotationX: -0.5 })} className="flex-1 h-6 text-[9px]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onUpdate({ cameraRotationX: -0.5 })}
+              className="flex-1 h-6 text-[9px]"
+            >
               Reset Pitch
             </Button>
-            <Button variant="outline" size="sm" onClick={() => onUpdate({ cameraRotationY: 0 })} className="flex-1 h-6 text-[9px]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onUpdate({ cameraRotationY: 0 })}
+              className="flex-1 h-6 text-[9px]"
+            >
               Reset Yaw
             </Button>
-            <Button variant="outline" size="sm" onClick={() => onUpdate({ cameraRotationZ: 0 })} className="flex-1 h-6 text-[9px]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onUpdate({ cameraRotationZ: 0 })}
+              className="flex-1 h-6 text-[9px]"
+            >
               Reset Roll
             </Button>
           </div>
@@ -394,15 +402,16 @@ export function CalibrationPanel({
       )}
 
       {/* Pitch Tab */}
-      {activeTab === 'pitch' && (
+      {activeTab === "pitch" && (
         <div className="space-y-4">
-          
           {/* FEATURE: DIRECT PITCH MANIPULATION (DRAG TO ALIGN) */}
-          <div className={`p-3 rounded-md border transition-all ${isDirectManipulating ? 'bg-primary/10 border-primary shadow-[0_0_10px_rgba(var(--primary),0.2)]' : 'bg-muted/30 border-transparent'}`}>
+          <div
+            className={`p-3 rounded-md border transition-all ${isDirectManipulating ? "bg-primary/10 border-primary shadow-[0_0_10px_rgba(var(--primary),0.2)]" : "bg-muted/30 border-transparent"}`}
+          >
             <div className="flex items-center justify-between mb-2">
               <div className="flex flex-col">
                 <Label className="text-[10px] font-bold flex items-center gap-1 uppercase tracking-wider">
-                  <Grab className={`h-3 w-3 ${isDirectManipulating ? 'text-primary' : ''}`} />
+                  <Grab className={`h-3 w-3 ${isDirectManipulating ? "text-primary" : ""}`} />
                   Direct Alignment
                 </Label>
                 <span className="text-[8px] text-muted-foreground">Stretch pitch by dragging mouse</span>
@@ -413,7 +422,7 @@ export function CalibrationPanel({
                 onClick={onToggleDirectManipulation}
                 className="h-6 text-[9px] px-3"
               >
-                {isDirectManipulating ? 'Stop' : 'Start'}
+                {isDirectManipulating ? "Stop" : "Start"}
               </Button>
             </div>
             {isDirectManipulating && (
@@ -456,15 +465,15 @@ export function CalibrationPanel({
                   onClick={onToggleCornerCalibrating}
                   className="h-6 text-[9px]"
                 >
-                  {isCornerCalibrating ? 'Done' : 'Pin'}
+                  {isCornerCalibrating ? "Done" : "Pin"}
                 </Button>
               </div>
-              
+
               {isCornerCalibrating && (
                 <div className="space-y-2 p-2 bg-muted/50 rounded-md">
                   <div className="grid grid-cols-2 gap-1">
                     {cornerLabels.map((corner) => {
-                      const point = cornerPoints.find(p => p.id === corner.id);
+                      const point = cornerPoints.find((p) => p.id === corner.id);
                       const isSet = point?.screenX !== undefined;
                       const isActive = activeCorner === corner.id;
                       return (
@@ -473,7 +482,7 @@ export function CalibrationPanel({
                           variant={isActive ? "default" : isSet ? "secondary" : "outline"}
                           size="sm"
                           onClick={() => onSetActiveCorner?.(isActive ? null : corner.id)}
-                          className={`h-7 text-[9px] gap-1 ${isSet ? 'border-primary/50' : ''}`}
+                          className={`h-7 text-[9px] gap-1 ${isSet ? "border-primary/50" : ""}`}
                         >
                           <span>{corner.icon}</span>
                           <span className="truncate">{corner.label}</span>
@@ -481,8 +490,13 @@ export function CalibrationPanel({
                       );
                     })}
                   </div>
-                  {onAutoCalibrate && cornerPoints.filter(p => p.screenX !== undefined).length === 4 && (
-                    <Button variant="default" size="sm" onClick={onAutoCalibrate} className="w-full h-7 text-[9px] gap-1">
+                  {onAutoCalibrate && cornerPoints.filter((p) => p.screenX !== undefined).length === 4 && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={onAutoCalibrate}
+                      className="w-full h-7 text-[9px] gap-1"
+                    >
                       <Wand2 className="h-3 w-3" /> Auto-Calibrate
                     </Button>
                   )}
@@ -499,7 +513,7 @@ export function CalibrationPanel({
                   <Grid3X3 className="h-3 w-3" /> Grid
                 </Label>
                 <div className="grid grid-cols-2 gap-1">
-                  {(['none', 'thirds', 'halves', 'channels', 'zones'] as GridOverlayType[]).map((type) => (
+                  {(["none", "thirds", "halves", "channels", "zones"] as GridOverlayType[]).map((type) => (
                     <Button
                       key={type}
                       variant={gridOverlay === type ? "default" : "outline"}
@@ -507,7 +521,7 @@ export function CalibrationPanel({
                       onClick={() => onGridOverlayChange(type)}
                       className="h-6 text-[8px] capitalize"
                     >
-                      {type === 'none' ? 'Off' : type}
+                      {type === "none" ? "Off" : type}
                     </Button>
                   ))}
                 </div>
@@ -520,7 +534,7 @@ export function CalibrationPanel({
                   <Flame className="h-3 w-3" /> Heatmap
                 </Label>
                 <div className="grid grid-cols-2 gap-1">
-                  {(['none', 'player_positions', 'ball_movement', 'all_activity'] as const).map((type) => (
+                  {(["none", "player_positions", "ball_movement", "all_activity"] as const).map((type) => (
                     <Button
                       key={type}
                       variant={heatmapType === type ? "default" : "outline"}
@@ -528,7 +542,7 @@ export function CalibrationPanel({
                       onClick={() => onHeatmapChange(type)}
                       className="h-6 text-[8px]"
                     >
-                      {type === 'none' ? 'Off' : type === 'player_positions' ? 'Players' : 'All'}
+                      {type === "none" ? "Off" : type === "player_positions" ? "Players" : "All"}
                     </Button>
                   ))}
                 </div>
@@ -543,31 +557,60 @@ export function CalibrationPanel({
               <div className="space-y-1">
                 <div className="flex justify-between">
                   <Label className="text-[10px] text-muted-foreground">Width Scale</Label>
-                  <span className="text-[10px] font-mono text-muted-foreground">{(pitchScale.width * 100).toFixed(0)}%</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {(pitchScale.width * 100).toFixed(0)}%
+                  </span>
                 </div>
                 <Slider
                   value={[pitchScale.width * 100]}
                   onValueChange={([v]) => onPitchScaleChange({ ...pitchScale, width: v / 100 })}
-                  min={50} max={200} step={1}
+                  min={50}
+                  max={200}
+                  step={1}
                 />
               </div>
 
               <div className="space-y-1">
                 <div className="flex justify-between">
                   <Label className="text-[10px] text-muted-foreground">Height Scale</Label>
-                  <span className="text-[10px] font-mono text-muted-foreground">{(pitchScale.height * 100).toFixed(0)}%</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {(pitchScale.height * 100).toFixed(0)}%
+                  </span>
                 </div>
                 <Slider
                   value={[pitchScale.height * 100]}
                   onValueChange={([v]) => onPitchScaleChange({ ...pitchScale, height: v / 100 })}
-                  min={50} max={200} step={1}
+                  min={50}
+                  max={200}
+                  step={1}
                 />
               </div>
 
               <div className="flex gap-1 pt-1">
-                <Button variant="outline" size="sm" onClick={() => onPitchScaleChange({ width: 1, height: 1 })} className="flex-1 h-6 text-[9px]">Reset</Button>
-                <Button variant="outline" size="sm" onClick={() => onPitchScaleChange({ width: 1.2, height: 1 })} className="flex-1 h-6 text-[9px]">Wide</Button>
-                <Button variant="outline" size="sm" onClick={() => onPitchScaleChange({ width: 1, height: 1.2 })} className="flex-1 h-6 text-[9px]">Tall</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPitchScaleChange({ width: 1, height: 1 })}
+                  className="flex-1 h-6 text-[9px]"
+                >
+                  Reset
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPitchScaleChange({ width: 1.2, height: 1 })}
+                  className="flex-1 h-6 text-[9px]"
+                >
+                  Wide
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPitchScaleChange({ width: 1, height: 1.2 })}
+                  className="flex-1 h-6 text-[9px]"
+                >
+                  Tall
+                </Button>
               </div>
             </div>
           )}
