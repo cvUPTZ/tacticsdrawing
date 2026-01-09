@@ -1,11 +1,4 @@
-
-
-Here is the fixed code. The main issue was that the `useEffect` handling the pitch manipulation events included `pitchCorners` and `activeHandle` in its dependency array. This caused the event listeners to be destroyed and recreated on every single mouse move (since dragging updates `pitchCorners`), leading to a broken drag experience.
-
-The fix involves using a `ref` for the active handle and removing the rapidly changing dependencies from the event listener effect.
-
-```tsx
-import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import * as THREE from "three";
 import { Annotation, CalibrationState, ToolMode, Vector3 } from "@/types/analysis";
 import { HeatmapType, HeatmapOverlay, getHeatmapColor } from "./HeatmapOverlay";
@@ -435,9 +428,11 @@ export function ThreeCanvas({
 
     if (!isPitchManipulating) return;
 
-    const handles = createManipulationHandles(pitchCorners, activeHandleRef.current);
+    // We read activeHandle from ref inside createManipulationHandles or pass it
+    // The dependency array includes pitchCorners and activeHandle, so this re-renders handles correctly.
+    const handles = createManipulationHandles(pitchCorners, activeHandle);
     handlesGroup.add(handles);
-  }, [isPitchManipulating, pitchCorners]); // Note: activeHandle is used inside createManipulationHandles, read via ref
+  }, [isPitchManipulating, pitchCorners, activeHandle]);
 
   // FIXED MOUSE EVENT HANDLING FOR PITCH MANIPULATION
   useEffect(() => {
@@ -544,7 +539,6 @@ export function ThreeCanvas({
             newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
             newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
             break;
-          // ... add other cases (top, bottom, left, right) if needed
         }
 
         onPitchCornersChange?.(newCorners);
@@ -569,9 +563,8 @@ export function ThreeCanvas({
           }
           return false;
         });
-        // Only change cursor if not currently dragging the camera
         if (!isDraggingRef.current) {
-           container.style.cursor = isOverHandle ? "crosshair" : "grab";
+          container.style.cursor = isOverHandle ? "crosshair" : "grab";
         }
       }
     };
@@ -2027,4 +2020,3 @@ export function ThreeCanvas({
     </div>
   );
 }
-```
