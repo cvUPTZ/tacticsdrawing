@@ -1,3 +1,10 @@
+
+
+Here is the fixed code. The main issue was that the `useEffect` handling the pitch manipulation events included `pitchCorners` and `activeHandle` in its dependency array. This caused the event listeners to be destroyed and recreated on every single mouse move (since dragging updates `pitchCorners`), leading to a broken drag experience.
+
+The fix involves using a `ref` for the active handle and removing the rapidly changing dependencies from the event listener effect.
+
+```tsx
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import * as THREE from "three";
 import { Annotation, CalibrationState, ToolMode, Vector3 } from "@/types/analysis";
@@ -114,6 +121,7 @@ export function ThreeCanvas({
 
   // Pitch manipulation state
   const [activeHandle, setActiveHandle] = useState<string | null>(null);
+  const activeHandleRef = useRef<string | null>(null); // Ref to prevent closure issues during drag
   const isDraggingHandleRef = useRef(false);
   const dragStartRef = useRef<{ x: number; z: number } | null>(null);
   const cornersStartRef = useRef<PitchCorners | null>(null);
@@ -122,6 +130,11 @@ export function ThreeCanvas({
   const isDraggingRef = useRef(false);
   const lastMouseRef = useRef({ x: 0, y: 0 });
   const orbitRef = useRef({ theta: 0, phi: Math.PI / 4, radius: 80 }); // Spherical coords
+
+  // Sync ref with state
+  useEffect(() => {
+    activeHandleRef.current = activeHandle;
+  }, [activeHandle]);
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -422,11 +435,11 @@ export function ThreeCanvas({
 
     if (!isPitchManipulating) return;
 
-    const handles = createManipulationHandles(pitchCorners, activeHandle);
+    const handles = createManipulationHandles(pitchCorners, activeHandleRef.current);
     handlesGroup.add(handles);
-  }, [isPitchManipulating, pitchCorners, activeHandle]);
+  }, [isPitchManipulating, pitchCorners]); // Note: activeHandle is used inside createManipulationHandles, read via ref
+
   // FIXED MOUSE EVENT HANDLING FOR PITCH MANIPULATION
-  // Replace the useEffect starting around line 274 in ThreeCanvas.tsx
   useEffect(() => {
     const container = containerRef.current;
     const camera = cameraRef.current;
@@ -487,7 +500,8 @@ export function ThreeCanvas({
             e.stopImmediatePropagation();
             e.preventDefault();
 
-            setActiveHandle(handleId);
+            activeHandleRef.current = handleId;
+            setActiveHandle(handleId); // Update state for UI re-renders
             isDraggingHandleRef.current = true;
             dragStartRef.current = worldPos;
             cornersStartRef.current = { ...pitchCorners };
@@ -499,7 +513,9 @@ export function ThreeCanvas({
 
     const handleMouseMove = (e: MouseEvent) => {
       // 1. Handle Dragging Logic
-      if (isDraggingHandleRef.current && activeHandle && dragStartRef.current && cornersStartRef.current) {
+      // We use activeHandleRef.current instead of the activeHandle state variable
+      // to prevent issues with closures if the effect doesn't re-run constantly.
+      if (isDraggingHandleRef.current && activeHandleRef.current && dragStartRef.current && cornersStartRef.current) {
         const worldPos = getWorldPosition(e);
         if (!worldPos) return;
 
@@ -509,7 +525,7 @@ export function ThreeCanvas({
 
         const newCorners = { ...start };
 
-        switch (activeHandle) {
+        switch (activeHandleRef.current) {
           case "topLeft":
             newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
             break;
@@ -553,12 +569,16 @@ export function ThreeCanvas({
           }
           return false;
         });
-        container.style.cursor = isOverHandle ? "crosshair" : isDraggingRef.current ? "grabbing" : "grab";
+        // Only change cursor if not currently dragging the camera
+        if (!isDraggingRef.current) {
+           container.style.cursor = isOverHandle ? "crosshair" : "grab";
+        }
       }
     };
 
     const handleMouseUp = () => {
       if (isDraggingHandleRef.current) {
+        activeHandleRef.current = null;
         setActiveHandle(null);
         isDraggingHandleRef.current = false;
         dragStartRef.current = null;
@@ -567,6 +587,9 @@ export function ThreeCanvas({
       }
     };
 
+    // NOTE: We do NOT include pitchCorners or activeHandle in the dependency array.
+    // Including them causes the event listeners to tear down and recreate on every mouse move,
+    // which breaks the dragging interaction.
     container.addEventListener("mousedown", handleMouseDown, { capture: true });
     window.addEventListener("mousemove", handleMouseMove); // Window is better for dragging
     window.addEventListener("mouseup", handleMouseUp);
@@ -576,7 +599,7 @@ export function ThreeCanvas({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isPitchManipulating, pitchCorners, activeHandle, onPitchCornersChange]);
+  }, [isPitchManipulating, onPitchCornersChange]);
 
   // Render calibration point markers on pitch
   useEffect(() => {
@@ -2004,3 +2027,4 @@ export function ThreeCanvas({
     </div>
   );
 }
+```
