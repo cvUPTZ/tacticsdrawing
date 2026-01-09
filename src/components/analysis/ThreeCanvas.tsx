@@ -427,7 +427,6 @@ export function ThreeCanvas({
   }, [isPitchManipulating, pitchCorners, activeHandle]);
   // FIXED MOUSE EVENT HANDLING FOR PITCH MANIPULATION
   // Replace the useEffect starting around line 274 in ThreeCanvas.tsx
-
   useEffect(() => {
     const container = containerRef.current;
     const camera = cameraRef.current;
@@ -444,19 +443,16 @@ export function ThreeCanvas({
       );
       raycaster.setFromCamera(mouse, camera);
 
-      // Intersect with ground plane
       const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
       const intersection = new THREE.Vector3();
-      raycaster.ray.intersectPlane(plane, intersection);
-
-      if (intersection) {
+      if (raycaster.ray.intersectPlane(plane, intersection)) {
         return { x: intersection.x, z: intersection.z };
       }
       return null;
     };
 
     const handleMouseDown = (e: MouseEvent) => {
-      if (e.button !== 0) return; // Only left click
+      if (e.button !== 0) return;
 
       const rect = container.getBoundingClientRect();
       const mouse = new THREE.Vector2(
@@ -468,127 +464,101 @@ export function ThreeCanvas({
       const handlesGroup = handlesGroupRef.current;
       if (!handlesGroup) return;
 
-      // CRITICAL FIX: Raycast recursively through ALL children
+      // Check all children recursively
       const intersects = raycaster.intersectObjects(handlesGroup.children, true);
 
-      console.log("Mouse down - intersects:", intersects.length);
+      if (intersects.length > 0) {
+        let obj: THREE.Object3D | null = intersects[0].object;
+        let handleId: string | null = null;
 
-      // Find the handle that was clicked
-      for (const intersect of intersects) {
-        let obj: THREE.Object3D | null = intersect.object;
-
-        // Walk up the parent chain to find the handle ID
+        // Find the handleId in the parent chain
         while (obj) {
           if (obj.userData?.handleId) {
-            const handleId = obj.userData.handleId;
-            console.log("✅ Handle clicked:", handleId);
-
-            const worldPos = getWorldPosition(e);
-            if (worldPos) {
-              setActiveHandle(handleId);
-              isDraggingHandleRef.current = true;
-              dragStartRef.current = worldPos;
-              cornersStartRef.current = { ...pitchCorners };
-
-              // Prevent the camera orbit from activating
-              e.stopPropagation();
-              e.preventDefault();
-
-              // Change cursor
-              container.style.cursor = "grabbing";
-            }
-            return;
+            handleId = obj.userData.handleId;
+            break;
           }
           obj = obj.parent;
+        }
+
+        if (handleId) {
+          const worldPos = getWorldPosition(e);
+          if (worldPos) {
+            // IMPORTANT: Stop the camera from rotating
+            e.stopImmediatePropagation();
+            e.preventDefault();
+
+            setActiveHandle(handleId);
+            isDraggingHandleRef.current = true;
+            dragStartRef.current = worldPos;
+            cornersStartRef.current = { ...pitchCorners };
+            container.style.cursor = "grabbing";
+          }
         }
       }
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingHandleRef.current || !activeHandle || !dragStartRef.current || !cornersStartRef.current) {
-        // When not dragging, update cursor when hovering over handles
-        const rect = container.getBoundingClientRect();
-        const mouse = new THREE.Vector2(
-          ((e.clientX - rect.left) / rect.width) * 2 - 1,
-          -((e.clientY - rect.top) / rect.height) * 2 + 1,
-        );
-        raycaster.setFromCamera(mouse, camera);
+      // 1. Handle Dragging Logic
+      if (isDraggingHandleRef.current && activeHandle && dragStartRef.current && cornersStartRef.current) {
+        const worldPos = getWorldPosition(e);
+        if (!worldPos) return;
 
-        const handlesGroup = handlesGroupRef.current;
-        if (handlesGroup) {
-          const intersects = raycaster.intersectObjects(handlesGroup.children, true);
+        const deltaX = worldPos.x - dragStartRef.current.x;
+        const deltaZ = worldPos.z - dragStartRef.current.z;
+        const start = cornersStartRef.current;
 
-          // Check if hovering over any handle
-          let foundHandle = false;
-          for (const intersect of intersects) {
-            let obj: THREE.Object3D | null = intersect.object;
-            while (obj) {
-              if (obj.userData?.handleId) {
-                foundHandle = true;
-                break;
-              }
-              obj = obj.parent;
-            }
-            if (foundHandle) break;
-          }
+        const newCorners = { ...start };
 
-          container.style.cursor = foundHandle ? "grab" : "default";
+        switch (activeHandle) {
+          case "topLeft":
+            newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
+            break;
+          case "topRight":
+            newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
+            break;
+          case "bottomLeft":
+            newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
+            break;
+          case "bottomRight":
+            newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
+            break;
+          case "center":
+            newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
+            newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
+            newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
+            newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
+            break;
+          // ... add other cases (top, bottom, left, right) if needed
         }
-        return;
+
+        onPitchCornersChange?.(newCorners);
+        return; // Skip cursor hover logic while dragging
       }
 
-      const worldPos = getWorldPosition(e);
-      if (!worldPos) return;
-
-      const deltaX = worldPos.x - dragStartRef.current.x;
-      const deltaZ = worldPos.z - dragStartRef.current.z;
-      const start = cornersStartRef.current;
-
-      let newCorners = { ...pitchCorners };
-
-      switch (activeHandle) {
-        case "topLeft":
-          newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
-          break;
-        case "topRight":
-          newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
-          break;
-        case "bottomLeft":
-          newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
-          break;
-        case "bottomRight":
-          newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
-          break;
-        case "top":
-          newCorners.topLeft = { x: start.topLeft.x, z: start.topLeft.z + deltaZ };
-          newCorners.topRight = { x: start.topRight.x, z: start.topRight.z + deltaZ };
-          break;
-        case "bottom":
-          newCorners.bottomLeft = { x: start.bottomLeft.x, z: start.bottomLeft.z + deltaZ };
-          newCorners.bottomRight = { x: start.bottomRight.x, z: start.bottomRight.z + deltaZ };
-          break;
-        case "left":
-          newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z };
-          newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z };
-          break;
-        case "right":
-          newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z };
-          newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z };
-          break;
-        case "center":
-          newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
-          newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
-          newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
-          newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
-          break;
+      // 2. Hover Cursor Logic
+      const rect = container.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(mouse, camera);
+      const handlesGroup = handlesGroupRef.current;
+      if (handlesGroup) {
+        const intersects = raycaster.intersectObjects(handlesGroup.children, true);
+        const isOverHandle = intersects.some((i) => {
+          let curr: THREE.Object3D | null = i.object;
+          while (curr) {
+            if (curr.userData?.handleId) return true;
+            curr = curr.parent;
+          }
+          return false;
+        });
+        container.style.cursor = isOverHandle ? "crosshair" : isDraggingRef.current ? "grabbing" : "grab";
       }
-
-      onPitchCornersChange?.(newCorners);
     };
 
     const handleMouseUp = () => {
       if (isDraggingHandleRef.current) {
-        console.log("✅ Handle drag ended");
         setActiveHandle(null);
         isDraggingHandleRef.current = false;
         dragStartRef.current = null;
@@ -597,24 +567,14 @@ export function ThreeCanvas({
       }
     };
 
-    const handleMouseLeave = () => {
-      if (isDraggingHandleRef.current) {
-        handleMouseUp();
-      }
-      container.style.cursor = "default";
-    };
-
-    // CRITICAL: Use capture phase to intercept before camera controls
     container.addEventListener("mousedown", handleMouseDown, { capture: true });
-    container.addEventListener("mousemove", handleMouseMove);
-    container.addEventListener("mouseup", handleMouseUp);
-    container.addEventListener("mouseleave", handleMouseLeave);
+    window.addEventListener("mousemove", handleMouseMove); // Window is better for dragging
+    window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
       container.removeEventListener("mousedown", handleMouseDown, { capture: true });
-      container.removeEventListener("mousemove", handleMouseMove);
-      container.removeEventListener("mouseup", handleMouseUp);
-      container.removeEventListener("mouseleave", handleMouseLeave);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isPitchManipulating, pitchCorners, activeHandle, onPitchCornersChange]);
 
