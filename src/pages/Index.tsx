@@ -776,9 +776,20 @@ export default function Index() {
                 </span>
               </div>
             )}
+
+            {/* Blender-style Pitch Shape mode indicator */}
+            {isPitchManipulating && !isDirectManipulating && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-full flex items-center gap-3 fade-in z-30">
+                <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
+                <span className="text-sm font-medium">Pitch Shape Control</span>
+                <span className="text-xs text-muted-foreground">
+                  Drag handles or use sliders to match video
+                </span>
+              </div>
+            )}
             
             {/* Tool mode indicator */}
-            {!isCornerCalibrating && !isDirectManipulating && toolMode !== 'select' && toolMode !== 'pan' && videoSrc && (
+            {!isCornerCalibrating && !isDirectManipulating && !isPitchManipulating && toolMode !== 'select' && toolMode !== 'pan' && videoSrc && (
               <div className="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-full flex items-center gap-3 fade-in">
                 <div 
                   className="w-3 h-3 rounded-full animate-pulse"
@@ -863,6 +874,11 @@ export default function Index() {
             onResetControlPoint={handleResetControlPoint}
             onResetAllControlPoints={handleResetAllControlPoints}
             onAddGridPoints={handleAddGridPoints}
+            isPitchManipulating={isPitchManipulating}
+            onTogglePitchManipulating={() => setIsPitchManipulating(!isPitchManipulating)}
+            pitchCorners={pitchCorners}
+            onPitchCornersChange={setPitchCorners}
+            onPitchCornersReset={handlePitchCornersReset}
           />
         </aside>
       </div>
