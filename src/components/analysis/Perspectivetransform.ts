@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FieldPoint } from './RealTimePitchDrawing';
+import { FieldPoint } from './SmartFieldpoints';
 
 /**
  * Calculate perspective transformation matrix from field points

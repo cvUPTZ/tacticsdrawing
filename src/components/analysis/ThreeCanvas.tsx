@@ -27,10 +27,14 @@ interface ThreeCanvasProps {
   calibrationPoints?: CalibrationPoint[];
   activeCalibrationPointId?: string | null;
   pitchTransform?: PitchTransform;
-  // New pitch manipulation props
+  // Pitch manipulation props
   pitchCorners?: PitchCorners;
   onPitchCornersChange?: (corners: PitchCorners) => void;
   isPitchManipulating?: boolean;
+  // Direct manipulation props (for control points)
+  isDirectManipulating?: boolean;
+  pitchControlPoints?: any[];
+  activeControlPointId?: string | null;
 }
 
 interface LabelData {
@@ -84,6 +88,9 @@ export function ThreeCanvas({
   pitchCorners = DEFAULT_CORNERS,
   onPitchCornersChange,
   isPitchManipulating = false,
+  isDirectManipulating = false,
+  pitchControlPoints = [],
+  activeControlPointId = null,
 }: ThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);

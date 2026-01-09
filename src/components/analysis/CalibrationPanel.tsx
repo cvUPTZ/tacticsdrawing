@@ -10,6 +10,8 @@ import { HeatmapType } from "./HeatmapOverlay";
 import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
 import { DirectPitchManipulation, PitchControlPoint } from "./DirectPitchManipulation";
 import { SmartFieldPoints, FieldPoint } from "./SmartFieldpoints";
+import { BlenderPitchControls } from "./BlenderPitchControls";
+import { PitchCorners } from "./PitchManipulator";
 
 interface PitchScale {
   width: number;
@@ -65,6 +67,12 @@ interface CalibrationPanelProps {
   onUpdateFieldPoint?: (id: string, screenX: number, screenY: number) => void;
   onResetFieldPoints?: () => void;
   onToggleFieldPointVisibility?: (id: string) => void;
+  // Blender-style pitch manipulation
+  isPitchManipulating?: boolean;
+  onTogglePitchManipulating?: () => void;
+  pitchCorners?: PitchCorners;
+  onPitchCornersChange?: (corners: PitchCorners) => void;
+  onPitchCornersReset?: () => void;
 }
 
 const PRESETS = [
@@ -114,6 +122,11 @@ export function CalibrationPanel({
   onUpdateFieldPoint,
   onResetFieldPoints,
   onToggleFieldPointVisibility,
+  isPitchManipulating = false,
+  onTogglePitchManipulating,
+  pitchCorners,
+  onPitchCornersChange,
+  onPitchCornersReset,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<"position" | "rotation" | "pitch">("position");
   const [newPresetName, setNewPresetName] = useState("");
@@ -368,6 +381,16 @@ export function CalibrationPanel({
 
       {activeTab === "pitch" && (
         <div className="space-y-3">
+          {/* BLENDER-STYLE PITCH CONTROLS - Primary tool for matching video */}
+          {onTogglePitchManipulating && pitchCorners && onPitchCornersChange && onPitchCornersReset && (
+            <BlenderPitchControls
+              isActive={isPitchManipulating}
+              onToggle={onTogglePitchManipulating}
+              corners={pitchCorners}
+              onCornersChange={onPitchCornersChange}
+              onReset={onPitchCornersReset}
+            />
+          )}
           {/* SMART FIELD POINTS - Handles partial visibility */}
           {onToggleFieldMapping && (
             <SmartFieldPoints
