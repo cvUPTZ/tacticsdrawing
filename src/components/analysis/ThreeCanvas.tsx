@@ -218,8 +218,11 @@ export function ThreeCanvas({
     directionalLight.position.set(50, 100, 50);
     scene.add(directionalLight);
 
-    // Mouse controls for rotation
-    const handleMouseDown = (e: MouseEvent) => {
+    // Mouse controls for camera rotation - stored in ref so pitch manipulation can check it
+    const cameraMouseDownHandler = (e: MouseEvent) => {
+      // Skip if pitch manipulation is handling this event
+      if ((e as any).__pitchManipulationHandled) return;
+      
       if (e.button === 0) {
         // Left click
         isDraggingRef.current = true;
@@ -228,7 +231,7 @@ export function ThreeCanvas({
       }
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const cameraMouseMoveHandler = (e: MouseEvent) => {
       if (!isDraggingRef.current) return;
 
       const deltaX = e.clientX - lastMouseRef.current.x;
@@ -252,18 +255,18 @@ export function ThreeCanvas({
       camera.lookAt(0, 0, 0);
     };
 
-    const handleMouseUp = () => {
+    const cameraMouseUpHandler = () => {
       isDraggingRef.current = false;
       container.style.cursor = "grab";
     };
 
-    const handleMouseLeave = () => {
+    const cameraMouseLeaveHandler = () => {
       isDraggingRef.current = false;
       container.style.cursor = "default";
     };
 
     // Wheel for zoom
-    const handleWheel = (e: WheelEvent) => {
+    const cameraWheelHandler = (e: WheelEvent) => {
       e.preventDefault();
       orbitRef.current.radius += e.deltaY * 0.1;
       orbitRef.current.radius = Math.max(20, Math.min(200, orbitRef.current.radius));
@@ -278,11 +281,12 @@ export function ThreeCanvas({
     };
 
     container.style.cursor = "grab";
-    container.addEventListener("mousedown", handleMouseDown);
-    container.addEventListener("mousemove", handleMouseMove);
-    container.addEventListener("mouseup", handleMouseUp);
-    container.addEventListener("mouseleave", handleMouseLeave);
-    container.addEventListener("wheel", handleWheel, { passive: false });
+    // Use capture: false so pitch manipulation handlers (with capture: true) run first
+    container.addEventListener("mousedown", cameraMouseDownHandler, { capture: false });
+    container.addEventListener("mousemove", cameraMouseMoveHandler, { capture: false });
+    container.addEventListener("mouseup", cameraMouseUpHandler, { capture: false });
+    container.addEventListener("mouseleave", cameraMouseLeaveHandler, { capture: false });
+    container.addEventListener("wheel", cameraWheelHandler, { passive: false });
 
     // Animation loop
     const animate = () => {
@@ -330,11 +334,11 @@ export function ThreeCanvas({
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      container.removeEventListener("mousedown", handleMouseDown);
-      container.removeEventListener("mousemove", handleMouseMove);
-      container.removeEventListener("mouseup", handleMouseUp);
-      container.removeEventListener("mouseleave", handleMouseLeave);
-      container.removeEventListener("wheel", handleWheel);
+      container.removeEventListener("mousedown", cameraMouseDownHandler, { capture: false });
+      container.removeEventListener("mousemove", cameraMouseMoveHandler, { capture: false });
+      container.removeEventListener("mouseup", cameraMouseUpHandler, { capture: false });
+      container.removeEventListener("mouseleave", cameraMouseLeaveHandler, { capture: false });
+      container.removeEventListener("wheel", cameraWheelHandler);
       renderer.dispose();
       container.removeChild(renderer.domElement);
     };
@@ -491,8 +495,9 @@ export function ThreeCanvas({
         if (handleId) {
           const worldPos = getWorldPosition(e);
           if (worldPos) {
-            // IMPORTANT: Stop the camera from rotating
-            e.stopImmediatePropagation();
+            // Mark event as handled by pitch manipulation so camera controls skip it
+            (e as any).__pitchManipulationHandled = true;
+            e.stopPropagation();
             e.preventDefault();
 
             activeHandleRef.current = handleId;
@@ -501,6 +506,8 @@ export function ThreeCanvas({
             dragStartRef.current = worldPos;
             cornersStartRef.current = { ...pitchCorners };
             container.style.cursor = "grabbing";
+            
+            console.log("🎯 Handle grabbed:", handleId);
           }
         }
       }
@@ -532,6 +539,22 @@ export function ThreeCanvas({
             break;
           case "bottomRight":
             newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
+            break;
+          case "top":
+            newCorners.topLeft = { x: start.topLeft.x, z: start.topLeft.z + deltaZ };
+            newCorners.topRight = { x: start.topRight.x, z: start.topRight.z + deltaZ };
+            break;
+          case "bottom":
+            newCorners.bottomLeft = { x: start.bottomLeft.x, z: start.bottomLeft.z + deltaZ };
+            newCorners.bottomRight = { x: start.bottomRight.x, z: start.bottomRight.z + deltaZ };
+            break;
+          case "left":
+            newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z };
+            newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z };
+            break;
+          case "right":
+            newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z };
+            newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z };
             break;
           case "center":
             newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
