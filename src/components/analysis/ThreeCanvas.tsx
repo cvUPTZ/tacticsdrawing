@@ -2014,7 +2014,11 @@ export function ThreeCanvas({
   );
 
   return (
-    <div ref={containerRef} className={`three-layer ${isInteractive ? "interactive" : ""}`} onClick={handleClick}>
+    <div
+      ref={containerRef}
+      className={`three-layer ${(isInteractive || isPitchManipulating) ? "interactive" : ""}`}
+      onClick={handleClick}
+    >
       {/* HTML Labels for player names */}
       {labels.map(
         (label) =>
