@@ -16,6 +16,7 @@ import { CalibrationPanel, CornerCalibrationPoint } from '@/components/analysis/
 import { CalibrationPoint } from '@/components/analysis/PointCalibration';
 import { PitchTransform, DEFAULT_TRANSFORM } from '@/components/analysis/PitchTransformControls';
 import { PitchCorners, DEFAULT_CORNERS, LockedHandles, DEFAULT_LOCKED_HANDLES } from '@/components/analysis/PitchManipulator';
+import { PitchSection, ZoomLevel } from '@/components/analysis/PitchSectionSelector';
 import { PitchControlPoint, DEFAULT_PITCH_CONTROL_POINTS, generateGridControlPoints } from '@/components/analysis/DirectPitchManipulation';
 import { AnnotationsList } from '@/components/analysis/AnnotationsList';
 import { ProjectsDialog } from '@/components/analysis/ProjectsDialog';
@@ -158,6 +159,11 @@ export default function Index() {
   const [isPitchManipulating, setIsPitchManipulating] = useState(false);
   const [pitchCorners, setPitchCorners] = useState<PitchCorners>(DEFAULT_CORNERS);
   const [lockedHandles, setLockedHandles] = useState<LockedHandles>(DEFAULT_LOCKED_HANDLES);
+  
+  // Pitch section selection state
+  const [selectedPitchSection, setSelectedPitchSection] = useState<PitchSection>('full');
+  const [selectedZoomLevel, setSelectedZoomLevel] = useState<ZoomLevel>('wide');
+  const [pitchSectionConfirmed, setPitchSectionConfirmed] = useState(false);
 
   // Direct Pitch Manipulation state - NEW
   const [isDirectManipulating, setIsDirectManipulating] = useState(false);
@@ -877,10 +883,23 @@ export default function Index() {
             onResetAllControlPoints={handleResetAllControlPoints}
             onAddGridPoints={handleAddGridPoints}
             isPitchManipulating={isPitchManipulating}
-            onTogglePitchManipulating={() => setIsPitchManipulating(!isPitchManipulating)}
+            onTogglePitchManipulating={() => {
+              if (!isPitchManipulating) {
+                setPitchSectionConfirmed(false); // Reset to show section selector
+              }
+              setIsPitchManipulating(!isPitchManipulating);
+            }}
             pitchCorners={pitchCorners}
             onPitchCornersChange={setPitchCorners}
             onPitchCornersReset={handlePitchCornersReset}
+            lockedHandles={lockedHandles}
+            onLockedHandlesChange={setLockedHandles}
+            selectedPitchSection={selectedPitchSection}
+            selectedZoomLevel={selectedZoomLevel}
+            onPitchSectionChange={setSelectedPitchSection}
+            onZoomLevelChange={setSelectedZoomLevel}
+            pitchSectionConfirmed={pitchSectionConfirmed}
+            onPitchSectionConfirm={() => setPitchSectionConfirmed(true)}
           />
         </aside>
       </div>
