@@ -8,11 +8,35 @@ export interface PitchCorners {
   bottomRight: { x: number; z: number };
 }
 
+export interface LockedHandles {
+  topLeft: boolean;
+  topRight: boolean;
+  bottomLeft: boolean;
+  bottomRight: boolean;
+  top: boolean;
+  bottom: boolean;
+  left: boolean;
+  right: boolean;
+  center: boolean;
+}
+
 export const DEFAULT_CORNERS: PitchCorners = {
   topLeft: { x: -52.5, z: -34 },
   topRight: { x: 52.5, z: -34 },
   bottomLeft: { x: -52.5, z: 34 },
   bottomRight: { x: 52.5, z: 34 },
+};
+
+export const DEFAULT_LOCKED_HANDLES: LockedHandles = {
+  topLeft: false,
+  topRight: false,
+  bottomLeft: false,
+  bottomRight: false,
+  top: false,
+  bottom: false,
+  left: false,
+  right: false,
+  center: false,
 };
 
 interface HandleInfo {
@@ -228,7 +252,11 @@ export function createPitchFromCorners(corners: PitchCorners): THREE.Group {
   return group;
 }
 
-export function createManipulationHandles(corners: PitchCorners, activeHandle: string | null): THREE.Group {
+export function createManipulationHandles(
+  corners: PitchCorners, 
+  activeHandle: string | null,
+  lockedHandles: LockedHandles = DEFAULT_LOCKED_HANDLES
+): THREE.Group {
   const group = new THREE.Group();
 
   // MUCH LARGER HANDLES
@@ -241,39 +269,44 @@ export function createManipulationHandles(corners: PitchCorners, activeHandle: s
   const cornerColor = 0xffaa00;
   const edgeColor = 0x00d4ff;
   const centerColor = 0xff4488;
+  const lockedColor = 0x666666;
 
-  const createHandle = (id: string, pos: { x: number; z: number }, isCorner: boolean, baseColor: number) => {
+  const createHandle = (id: string, pos: { x: number; z: number }, isCorner: boolean, baseColor: number, isLocked: boolean = false) => {
     const isActive = activeHandle === id;
     const size = isCorner ? cornerHandleSize : id === "center" ? centerHandleSize : edgeHandleSize;
     const handleGroup = new THREE.Group();
+    
+    // Use locked color if handle is locked
+    const displayColor = isLocked ? lockedColor : (isActive ? activeColor : baseColor);
+    const displayOpacity = isLocked ? 0.5 : 1.0;
 
     // MAIN SPHERE - Large and bright
     const sphereGeometry = new THREE.SphereGeometry(size * 0.6, 24, 24);
     const sphereMaterial = new THREE.MeshBasicMaterial({
-      color: isActive ? activeColor : baseColor,
+      color: displayColor,
       transparent: true,
-      opacity: 1.0,
+      opacity: displayOpacity,
       depthTest: false,
     });
     const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
     sphere.position.set(pos.x, size, pos.z);
-    sphere.userData = { handleId: id };
+    sphere.userData = { handleId: id, isLocked };
     sphere.renderOrder = 999;
     handleGroup.add(sphere);
 
     // OUTER GLOW RING
     const ringGeometry = new THREE.RingGeometry(size * 0.8, size * 1.1, 32);
     const ringMaterial = new THREE.MeshBasicMaterial({
-      color: isActive ? activeColor : baseColor,
+      color: displayColor,
       transparent: true,
-      opacity: 0.8,
+      opacity: isLocked ? 0.4 : 0.8,
       side: THREE.DoubleSide,
       depthTest: false,
     });
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(pos.x, 0.1, pos.z);
-    ring.userData = { handleId: id };
+    ring.userData = { handleId: id, isLocked };
     ring.renderOrder = 998;
     handleGroup.add(ring);
 
@@ -281,45 +314,66 @@ export function createManipulationHandles(corners: PitchCorners, activeHandle: s
     const poleHeight = size * 2;
     const poleGeometry = new THREE.CylinderGeometry(size * 0.2, size * 0.2, poleHeight, 12);
     const poleMaterial = new THREE.MeshBasicMaterial({
-      color: isActive ? activeColor : baseColor,
+      color: displayColor,
       transparent: true,
-      opacity: 0.9,
+      opacity: isLocked ? 0.4 : 0.9,
       depthTest: false,
     });
     const pole = new THREE.Mesh(poleGeometry, poleMaterial);
     pole.position.set(pos.x, poleHeight / 2, pos.z);
-    pole.userData = { handleId: id };
+    pole.userData = { handleId: id, isLocked };
     pole.renderOrder = 997;
     handleGroup.add(pole);
 
     // GROUND CIRCLE
     const groundGeometry = new THREE.CircleGeometry(size * 0.5, 32);
     const groundMaterial = new THREE.MeshBasicMaterial({
-      color: isActive ? activeColor : baseColor,
+      color: displayColor,
       transparent: true,
-      opacity: 0.5,
+      opacity: isLocked ? 0.2 : 0.5,
       side: THREE.DoubleSide,
       depthTest: false,
     });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(pos.x, 0.02, pos.z);
-    ground.userData = { handleId: id };
+    ground.userData = { handleId: id, isLocked };
     ground.renderOrder = 996;
     handleGroup.add(ground);
 
-    // EDGE OUTLINE for corners
-    if (isCorner) {
+    // EDGE OUTLINE for corners (or lock indicator)
+    if (isCorner || isLocked) {
       const edgesGeo = new THREE.EdgesGeometry(sphereGeometry);
       const edgesMat = new THREE.LineBasicMaterial({
-        color: 0xffffff,
+        color: isLocked ? 0xff4444 : 0xffffff,
         depthTest: false,
       });
       const edges = new THREE.LineSegments(edgesGeo, edgesMat);
       edges.position.copy(sphere.position);
-      edges.userData = { handleId: id };
+      edges.userData = { handleId: id, isLocked };
       edges.renderOrder = 1000;
       handleGroup.add(edges);
+    }
+    
+    // Lock icon indicator (X pattern for locked handles)
+    if (isLocked) {
+      const xSize = size * 0.4;
+      const xGeom1 = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-xSize, 0, -xSize),
+        new THREE.Vector3(xSize, 0, xSize),
+      ]);
+      const xGeom2 = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-xSize, 0, xSize),
+        new THREE.Vector3(xSize, 0, -xSize),
+      ]);
+      const xMat = new THREE.LineBasicMaterial({ color: 0xff4444, depthTest: false, linewidth: 2 });
+      const xLine1 = new THREE.Line(xGeom1, xMat);
+      const xLine2 = new THREE.Line(xGeom2, xMat);
+      xLine1.position.set(pos.x, size * 1.8, pos.z);
+      xLine2.position.set(pos.x, size * 1.8, pos.z);
+      xLine1.renderOrder = 1001;
+      xLine2.renderOrder = 1001;
+      handleGroup.add(xLine1, xLine2);
     }
 
     return handleGroup;
@@ -332,7 +386,8 @@ export function createManipulationHandles(corners: PitchCorners, activeHandle: s
     { id: "bottomLeft", pos: corners.bottomLeft },
     { id: "bottomRight", pos: corners.bottomRight },
   ].forEach(({ id, pos }) => {
-    group.add(createHandle(id, pos, true, cornerColor));
+    const isLocked = lockedHandles[id as keyof LockedHandles] || false;
+    group.add(createHandle(id, pos, true, cornerColor, isLocked));
   });
 
   // EDGE HANDLES (4)
@@ -357,17 +412,20 @@ export function createManipulationHandles(corners: PitchCorners, activeHandle: s
       pos: { x: (corners.topRight.x + corners.bottomRight.x) / 2, z: (corners.topRight.z + corners.bottomRight.z) / 2 },
     },
   ].forEach(({ id, pos }) => {
-    group.add(createHandle(id, pos, false, edgeColor));
+    const isLocked = lockedHandles[id as keyof LockedHandles] || false;
+    group.add(createHandle(id, pos, false, edgeColor, isLocked));
   });
 
   // CENTER HANDLE (1)
   const centerX = (corners.topLeft.x + corners.topRight.x + corners.bottomLeft.x + corners.bottomRight.x) / 4;
   const centerZ = (corners.topLeft.z + corners.topRight.z + corners.bottomLeft.z + corners.bottomRight.z) / 4;
-  group.add(createHandle("center", { x: centerX, z: centerZ }, false, centerColor));
+  const isCenterLocked = lockedHandles.center || false;
+  group.add(createHandle("center", { x: centerX, z: centerZ }, false, centerColor, isCenterLocked));
 
   console.log("✅ Created manipulation handles:", {
     totalHandles: 9,
     groupChildren: group.children.length,
+    lockedHandles: Object.entries(lockedHandles).filter(([_, v]) => v).map(([k]) => k),
   });
 
   return group;

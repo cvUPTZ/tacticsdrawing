@@ -14,7 +14,7 @@ import {
   ChevronDown,
   ChevronUp
 } from "lucide-react";
-import { PitchCorners, DEFAULT_CORNERS } from './PitchManipulator';
+import { PitchCorners, DEFAULT_CORNERS, LockedHandles, DEFAULT_LOCKED_HANDLES } from './PitchManipulator';
 
 interface BlenderPitchControlsProps {
   isActive: boolean;
@@ -22,6 +22,8 @@ interface BlenderPitchControlsProps {
   corners: PitchCorners;
   onCornersChange: (corners: PitchCorners) => void;
   onReset: () => void;
+  lockedHandles?: LockedHandles;
+  onLockedHandlesChange?: (locked: LockedHandles) => void;
 }
 
 type ControlMode = 'corners' | 'edges' | 'perspective';
@@ -32,10 +34,25 @@ export function BlenderPitchControls({
   corners,
   onCornersChange,
   onReset,
+  lockedHandles = DEFAULT_LOCKED_HANDLES,
+  onLockedHandlesChange,
 }: BlenderPitchControlsProps) {
   const [mode, setMode] = useState<ControlMode>('corners');
   const [lockAspect, setLockAspect] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Toggle lock for a specific handle
+  const toggleLock = (handleId: keyof LockedHandles) => {
+    if (onLockedHandlesChange) {
+      onLockedHandlesChange({
+        ...lockedHandles,
+        [handleId]: !lockedHandles[handleId],
+      });
+    }
+  };
+
+  // Count locked handles
+  const lockedCount = Object.values(lockedHandles).filter(Boolean).length;
 
   // Calculate derived values
   const width = Math.abs(corners.topRight.x - corners.topLeft.x);
@@ -227,15 +244,26 @@ export function BlenderPitchControls({
 
           {mode === 'corners' && (
             <div className="space-y-3">
-              <p className="text-[9px] text-muted-foreground">
-                Drag handles on pitch or adjust sliders below. Each corner moves independently.
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] text-muted-foreground">
+                  Click 🔒 to freeze handles. {lockedCount > 0 && `(${lockedCount} locked)`}
+                </p>
+              </div>
               
               {/* Top Left Corner */}
-              <div className="space-y-1.5 p-2 bg-muted/30 rounded">
-                <Label className="text-[9px] font-medium flex items-center gap-1">
-                  ↖ Top Left
-                </Label>
+              <div className={`space-y-1.5 p-2 rounded ${lockedHandles.topLeft ? 'bg-destructive/10 border border-destructive/30' : 'bg-muted/30'}`}>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[9px] font-medium flex items-center gap-1">
+                    ↖ Top Left
+                  </Label>
+                  <button
+                    onClick={() => toggleLock('topLeft')}
+                    className={`p-1 rounded transition-colors ${lockedHandles.topLeft ? 'text-destructive bg-destructive/20' : 'text-muted-foreground hover:text-foreground'}`}
+                    title={lockedHandles.topLeft ? 'Unlock handle' : 'Lock handle'}
+                  >
+                    {lockedHandles.topLeft ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <div className="flex justify-between text-[8px] text-muted-foreground">
@@ -248,6 +276,7 @@ export function BlenderPitchControls({
                       min={-100}
                       max={0}
                       step={0.5}
+                      disabled={lockedHandles.topLeft}
                     />
                   </div>
                   <div className="space-y-1">
@@ -261,16 +290,26 @@ export function BlenderPitchControls({
                       min={-80}
                       max={0}
                       step={0.5}
+                      disabled={lockedHandles.topLeft}
                     />
                   </div>
                 </div>
               </div>
 
               {/* Top Right Corner */}
-              <div className="space-y-1.5 p-2 bg-muted/30 rounded">
-                <Label className="text-[9px] font-medium flex items-center gap-1">
-                  ↗ Top Right
-                </Label>
+              <div className={`space-y-1.5 p-2 rounded ${lockedHandles.topRight ? 'bg-destructive/10 border border-destructive/30' : 'bg-muted/30'}`}>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[9px] font-medium flex items-center gap-1">
+                    ↗ Top Right
+                  </Label>
+                  <button
+                    onClick={() => toggleLock('topRight')}
+                    className={`p-1 rounded transition-colors ${lockedHandles.topRight ? 'text-destructive bg-destructive/20' : 'text-muted-foreground hover:text-foreground'}`}
+                    title={lockedHandles.topRight ? 'Unlock handle' : 'Lock handle'}
+                  >
+                    {lockedHandles.topRight ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <div className="flex justify-between text-[8px] text-muted-foreground">
@@ -283,6 +322,7 @@ export function BlenderPitchControls({
                       min={0}
                       max={100}
                       step={0.5}
+                      disabled={lockedHandles.topRight}
                     />
                   </div>
                   <div className="space-y-1">
@@ -296,16 +336,26 @@ export function BlenderPitchControls({
                       min={-80}
                       max={0}
                       step={0.5}
+                      disabled={lockedHandles.topRight}
                     />
                   </div>
                 </div>
               </div>
 
               {/* Bottom Left Corner */}
-              <div className="space-y-1.5 p-2 bg-muted/30 rounded">
-                <Label className="text-[9px] font-medium flex items-center gap-1">
-                  ↙ Bottom Left
-                </Label>
+              <div className={`space-y-1.5 p-2 rounded ${lockedHandles.bottomLeft ? 'bg-destructive/10 border border-destructive/30' : 'bg-muted/30'}`}>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[9px] font-medium flex items-center gap-1">
+                    ↙ Bottom Left
+                  </Label>
+                  <button
+                    onClick={() => toggleLock('bottomLeft')}
+                    className={`p-1 rounded transition-colors ${lockedHandles.bottomLeft ? 'text-destructive bg-destructive/20' : 'text-muted-foreground hover:text-foreground'}`}
+                    title={lockedHandles.bottomLeft ? 'Unlock handle' : 'Lock handle'}
+                  >
+                    {lockedHandles.bottomLeft ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <div className="flex justify-between text-[8px] text-muted-foreground">
@@ -318,6 +368,7 @@ export function BlenderPitchControls({
                       min={-100}
                       max={0}
                       step={0.5}
+                      disabled={lockedHandles.bottomLeft}
                     />
                   </div>
                   <div className="space-y-1">
@@ -331,16 +382,26 @@ export function BlenderPitchControls({
                       min={0}
                       max={80}
                       step={0.5}
+                      disabled={lockedHandles.bottomLeft}
                     />
                   </div>
                 </div>
               </div>
 
               {/* Bottom Right Corner */}
-              <div className="space-y-1.5 p-2 bg-muted/30 rounded">
-                <Label className="text-[9px] font-medium flex items-center gap-1">
-                  ↘ Bottom Right
-                </Label>
+              <div className={`space-y-1.5 p-2 rounded ${lockedHandles.bottomRight ? 'bg-destructive/10 border border-destructive/30' : 'bg-muted/30'}`}>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[9px] font-medium flex items-center gap-1">
+                    ↘ Bottom Right
+                  </Label>
+                  <button
+                    onClick={() => toggleLock('bottomRight')}
+                    className={`p-1 rounded transition-colors ${lockedHandles.bottomRight ? 'text-destructive bg-destructive/20' : 'text-muted-foreground hover:text-foreground'}`}
+                    title={lockedHandles.bottomRight ? 'Unlock handle' : 'Lock handle'}
+                  >
+                    {lockedHandles.bottomRight ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <div className="flex justify-between text-[8px] text-muted-foreground">
@@ -353,6 +414,7 @@ export function BlenderPitchControls({
                       min={0}
                       max={100}
                       step={0.5}
+                      disabled={lockedHandles.bottomRight}
                     />
                   </div>
                   <div className="space-y-1">
@@ -366,6 +428,7 @@ export function BlenderPitchControls({
                       min={0}
                       max={80}
                       step={0.5}
+                      disabled={lockedHandles.bottomRight}
                     />
                   </div>
                 </div>
