@@ -5,7 +5,7 @@ import { HeatmapType, HeatmapOverlay, getHeatmapColor } from "./HeatmapOverlay";
 import { createSOTAPitch, PITCH_REFERENCE_POINTS } from "./SOTAPitch";
 import { CalibrationPoint } from "./PointCalibration";
 import { PitchTransform, DEFAULT_TRANSFORM } from "./PitchTransformControls";
-import { PitchCorners, DEFAULT_CORNERS, createPitchFromCorners, createManipulationHandles } from "./PitchManipulator";
+import { PitchCorners, DEFAULT_CORNERS, createPitchFromCorners, createManipulationHandles, LockedHandles, DEFAULT_LOCKED_HANDLES } from "./PitchManipulator";
 
 interface PitchScale {
   width: number;
@@ -31,6 +31,7 @@ interface ThreeCanvasProps {
   pitchCorners?: PitchCorners;
   onPitchCornersChange?: (corners: PitchCorners) => void;
   isPitchManipulating?: boolean;
+  lockedHandles?: LockedHandles;
   // Direct manipulation props (for control points)
   isDirectManipulating?: boolean;
   pitchControlPoints?: any[];
@@ -92,6 +93,7 @@ export function ThreeCanvas({
   pitchCorners = DEFAULT_CORNERS,
   onPitchCornersChange,
   isPitchManipulating = false,
+  lockedHandles = DEFAULT_LOCKED_HANDLES,
   isDirectManipulating = false,
   pitchControlPoints = [],
   activeControlPointId = null,
@@ -434,9 +436,9 @@ export function ThreeCanvas({
 
     // We read activeHandle from ref inside createManipulationHandles or pass it
     // The dependency array includes pitchCorners and activeHandle, so this re-renders handles correctly.
-    const handles = createManipulationHandles(pitchCorners, activeHandle);
+    const handles = createManipulationHandles(pitchCorners, activeHandle, lockedHandles);
     handlesGroup.add(handles);
-  }, [isPitchManipulating, pitchCorners, activeHandle]);
+  }, [isPitchManipulating, pitchCorners, activeHandle, lockedHandles]);
 
   // FIXED MOUSE EVENT HANDLING FOR PITCH MANIPULATION
   useEffect(() => {
@@ -493,6 +495,12 @@ export function ThreeCanvas({
         }
 
         if (handleId) {
+          // Check if this handle is locked
+          if (lockedHandles[handleId as keyof LockedHandles]) {
+            console.log("🔒 Handle is locked:", handleId);
+            return; // Don't allow dragging locked handles
+          }
+          
           const worldPos = getWorldPosition(e);
           if (worldPos) {
             // Mark event as handled by pitch manipulation so camera controls skip it

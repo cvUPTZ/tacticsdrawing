@@ -15,7 +15,7 @@ import { ToolPanel } from '@/components/analysis/ToolPanel';
 import { CalibrationPanel, CornerCalibrationPoint } from '@/components/analysis/CalibrationPanel';
 import { CalibrationPoint } from '@/components/analysis/PointCalibration';
 import { PitchTransform, DEFAULT_TRANSFORM } from '@/components/analysis/PitchTransformControls';
-import { PitchCorners, DEFAULT_CORNERS } from '@/components/analysis/PitchManipulator';
+import { PitchCorners, DEFAULT_CORNERS, LockedHandles, DEFAULT_LOCKED_HANDLES } from '@/components/analysis/PitchManipulator';
 import { PitchControlPoint, DEFAULT_PITCH_CONTROL_POINTS, generateGridControlPoints } from '@/components/analysis/DirectPitchManipulation';
 import { AnnotationsList } from '@/components/analysis/AnnotationsList';
 import { ProjectsDialog } from '@/components/analysis/ProjectsDialog';
@@ -157,6 +157,7 @@ export default function Index() {
   // Pitch manipulation state
   const [isPitchManipulating, setIsPitchManipulating] = useState(false);
   const [pitchCorners, setPitchCorners] = useState<PitchCorners>(DEFAULT_CORNERS);
+  const [lockedHandles, setLockedHandles] = useState<LockedHandles>(DEFAULT_LOCKED_HANDLES);
 
   // Direct Pitch Manipulation state - NEW
   const [isDirectManipulating, setIsDirectManipulating] = useState(false);
@@ -699,6 +700,7 @@ export default function Index() {
               pitchCorners={pitchCorners}
               onPitchCornersChange={setPitchCorners}
               isPitchManipulating={isPitchManipulating}
+              lockedHandles={lockedHandles}
               isDirectManipulating={isDirectManipulating}
               pitchControlPoints={pitchControlPoints}
               activeControlPointId={activeControlPointId}
