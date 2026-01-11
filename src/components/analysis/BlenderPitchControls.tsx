@@ -12,9 +12,16 @@ import {
   Grid3X3,
   Square,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Focus
 } from "lucide-react";
 import { PitchCorners, DEFAULT_CORNERS, LockedHandles, DEFAULT_LOCKED_HANDLES } from './PitchManipulator';
+import { 
+  PitchSectionSelector, 
+  PitchSection, 
+  ZoomLevel, 
+  getInitialCornersForSection 
+} from './PitchSectionSelector';
 
 interface BlenderPitchControlsProps {
   isActive: boolean;
@@ -24,6 +31,13 @@ interface BlenderPitchControlsProps {
   onReset: () => void;
   lockedHandles?: LockedHandles;
   onLockedHandlesChange?: (locked: LockedHandles) => void;
+  // Section selection
+  selectedSection?: PitchSection;
+  selectedZoom?: ZoomLevel;
+  onSectionChange?: (section: PitchSection) => void;
+  onZoomChange?: (zoom: ZoomLevel) => void;
+  sectionConfirmed?: boolean;
+  onSectionConfirm?: () => void;
 }
 
 type ControlMode = 'corners' | 'edges' | 'perspective';
@@ -36,10 +50,17 @@ export function BlenderPitchControls({
   onReset,
   lockedHandles = DEFAULT_LOCKED_HANDLES,
   onLockedHandlesChange,
+  selectedSection = 'full',
+  selectedZoom = 'wide',
+  onSectionChange,
+  onZoomChange,
+  sectionConfirmed = false,
+  onSectionConfirm,
 }: BlenderPitchControlsProps) {
   const [mode, setMode] = useState<ControlMode>('corners');
   const [lockAspect, setLockAspect] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSectionSelector, setShowSectionSelector] = useState(!sectionConfirmed);
 
   // Toggle lock for a specific handle
   const toggleLock = (handleId: keyof LockedHandles) => {
@@ -214,8 +235,70 @@ export function BlenderPitchControls({
 
       {isActive && (
         <>
-          {/* Mode selector */}
-          <div className="flex gap-1 p-0.5 bg-muted/50 rounded">
+          {/* Section Selector - Show first if not confirmed */}
+          {showSectionSelector && !sectionConfirmed && onSectionChange && onZoomChange && onSectionConfirm && (
+            <PitchSectionSelector
+              selectedSection={selectedSection}
+              selectedZoom={selectedZoom}
+              onSectionChange={(section) => {
+                onSectionChange(section);
+                // Apply initial corners based on section
+                const initialCorners = getInitialCornersForSection(section);
+                onCornersChange(initialCorners);
+              }}
+              onZoomChange={onZoomChange}
+              onConfirm={() => {
+                onSectionConfirm();
+                setShowSectionSelector(false);
+              }}
+              onCancel={() => {
+                setShowSectionSelector(false);
+                onToggle();
+              }}
+            />
+          )}
+
+          {/* Show controls only after section is confirmed */}
+          {(sectionConfirmed || !onSectionConfirm) && (
+            <>
+              {/* Section indicator */}
+              {onSectionChange && (
+                <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+                  <div className="flex items-center gap-2">
+                    <Focus className="h-3.5 w-3.5 text-primary" />
+                    <div>
+                      <p className="text-[10px] font-medium">
+                        {selectedSection === 'full' ? 'Full Pitch' : 
+                         selectedSection === 'left_half' ? 'Left Half' :
+                         selectedSection === 'right_half' ? 'Right Half' :
+                         selectedSection === 'left_penalty' ? 'Left Penalty Box' :
+                         selectedSection === 'right_penalty' ? 'Right Penalty Box' :
+                         selectedSection === 'center_circle' ? 'Center Circle' :
+                         selectedSection.replace(/_/g, ' ')}
+                      </p>
+                      <p className="text-[8px] text-muted-foreground">
+                        {selectedZoom.charAt(0).toUpperCase() + selectedZoom.slice(1).replace('_', ' ')} zoom
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[9px]"
+                    onClick={() => {
+                      setShowSectionSelector(true);
+                      if (onSectionConfirm) {
+                        // Reset confirmation to show selector
+                      }
+                    }}
+                  >
+                    Change
+                  </Button>
+                </div>
+              )}
+
+              {/* Mode selector */}
+              <div className="flex gap-1 p-0.5 bg-muted/50 rounded">
             <button
               onClick={() => setMode('corners')}
               className={`flex-1 py-1 px-2 text-[9px] rounded transition-colors ${
@@ -620,6 +703,8 @@ export function BlenderPitchControls({
           <p className="text-[8px] text-muted-foreground/70 italic">
             Tip: Drag corner handles directly on the pitch for quick adjustments
           </p>
+            </>
+          )}
         </>
       )}
     </div>

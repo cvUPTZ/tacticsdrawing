@@ -11,7 +11,8 @@ import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
 import { DirectPitchManipulation, PitchControlPoint } from "./DirectPitchManipulation";
 import { SmartFieldPoints, FieldPoint } from "./SmartFieldpoints";
 import { BlenderPitchControls } from "./BlenderPitchControls";
-import { PitchCorners } from "./PitchManipulator";
+import { PitchCorners, LockedHandles } from "./PitchManipulator";
+import { PitchSection, ZoomLevel } from "./PitchSectionSelector";
 
 interface PitchScale {
   width: number;
@@ -73,6 +74,16 @@ interface CalibrationPanelProps {
   pitchCorners?: PitchCorners;
   onPitchCornersChange?: (corners: PitchCorners) => void;
   onPitchCornersReset?: () => void;
+  // Handle locks
+  lockedHandles?: LockedHandles;
+  onLockedHandlesChange?: (locked: LockedHandles) => void;
+  // Pitch section selection
+  selectedPitchSection?: PitchSection;
+  selectedZoomLevel?: ZoomLevel;
+  onPitchSectionChange?: (section: PitchSection) => void;
+  onZoomLevelChange?: (zoom: ZoomLevel) => void;
+  pitchSectionConfirmed?: boolean;
+  onPitchSectionConfirm?: () => void;
 }
 
 const PRESETS = [
@@ -127,6 +138,14 @@ export function CalibrationPanel({
   pitchCorners,
   onPitchCornersChange,
   onPitchCornersReset,
+  lockedHandles,
+  onLockedHandlesChange,
+  selectedPitchSection = 'full',
+  selectedZoomLevel = 'wide',
+  onPitchSectionChange,
+  onZoomLevelChange,
+  pitchSectionConfirmed = false,
+  onPitchSectionConfirm,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<"position" | "rotation" | "pitch">("position");
   const [newPresetName, setNewPresetName] = useState("");
@@ -389,6 +408,14 @@ export function CalibrationPanel({
               corners={pitchCorners}
               onCornersChange={onPitchCornersChange}
               onReset={onPitchCornersReset}
+              lockedHandles={lockedHandles}
+              onLockedHandlesChange={onLockedHandlesChange}
+              selectedSection={selectedPitchSection}
+              selectedZoom={selectedZoomLevel}
+              onSectionChange={onPitchSectionChange}
+              onZoomChange={onZoomLevelChange}
+              sectionConfirmed={pitchSectionConfirmed}
+              onSectionConfirm={onPitchSectionConfirm}
             />
           )}
           {/* SMART FIELD POINTS - Handles partial visibility */}
