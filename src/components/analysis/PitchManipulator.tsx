@@ -561,8 +561,25 @@ export function createManipulationHandles(
   lockedHandles: LockedHandles = DEFAULT_LOCKED_HANDLES,
   showGridHandles: boolean = false,
   extendedHandles: ExtendedHandles = DEFAULT_EXTENDED_HANDLES,
+  selectedSection: string = "full",
 ): THREE.Group {
   const group = new THREE.Group();
+
+  const pitchLength = 105;
+  const pitchWidth = 68;
+
+  // Bounds for clipping based on section
+  const area = (SECTION_VISIBLE_AREAS as any)[selectedSection] || SECTION_VISIBLE_AREAS.full;
+  const minX = -pitchLength / 2 + area.x1 * pitchLength;
+  const maxX = -pitchLength / 2 + area.x2 * pitchLength;
+  const minZ = -pitchWidth / 2 + area.y1 * pitchWidth;
+  const maxZ = -pitchWidth / 2 + area.y2 * pitchWidth;
+
+  const isPointVisible = (x: number, z: number) => {
+    // Convert current handle world position to normalized pitch coordinates to check against section
+    // Since we are checking the ORIGINAL pitch points for the handles, we use the logical pitch coords
+    return x >= minX - 1 && x <= maxX + 1 && z >= minZ - 1 && z <= maxZ + 1;
+  };
 
   // Handle sizes
   const cornerHandleSize = 3.5;
@@ -708,11 +725,12 @@ export function createManipulationHandles(
 
   // CORNER HANDLES (4)
   [
-    { id: "topLeft", pos: corners.topLeft },
-    { id: "topRight", pos: corners.topRight },
-    { id: "bottomLeft", pos: corners.bottomLeft },
-    { id: "bottomRight", pos: corners.bottomRight },
-  ].forEach(({ id, pos }) => {
+    { id: "topLeft", pos: corners.topLeft, px: -52.5, pz: -34 },
+    { id: "topRight", pos: corners.topRight, px: 52.5, pz: -34 },
+    { id: "bottomLeft", pos: corners.bottomLeft, px: -52.5, pz: 34 },
+    { id: "bottomRight", pos: corners.bottomRight, px: 52.5, pz: 34 },
+  ].forEach(({ id, pos, px, pz }) => {
+    if (!isPointVisible(px, pz)) return;
     const isLocked = lockedHandles[id] || false;
     group.add(createHandle(id, pos, "corner", cornerColor, isLocked));
   });
@@ -722,6 +740,8 @@ export function createManipulationHandles(
     {
       id: "top",
       pos: { x: (corners.topLeft.x + corners.topRight.x) / 2, z: (corners.topLeft.z + corners.topRight.z) / 2 },
+      px: 0,
+      pz: -34,
     },
     {
       id: "bottom",
@@ -729,31 +749,50 @@ export function createManipulationHandles(
         x: (corners.bottomLeft.x + corners.bottomRight.x) / 2,
         z: (corners.bottomLeft.z + corners.bottomRight.z) / 2,
       },
+      px: 0,
+      pz: 34,
     },
     {
       id: "left",
       pos: { x: (corners.topLeft.x + corners.bottomLeft.x) / 2, z: (corners.topLeft.z + corners.bottomLeft.z) / 2 },
+      px: -52.5,
+      pz: 0,
     },
     {
       id: "right",
       pos: { x: (corners.topRight.x + corners.bottomRight.x) / 2, z: (corners.topRight.z + corners.bottomRight.z) / 2 },
+      px: 52.5,
+      pz: 0,
     },
-  ].forEach(({ id, pos }) => {
+  ].forEach(({ id, pos, px, pz }) => {
+    if (!isPointVisible(px, pz)) return;
     const isLocked = lockedHandles[id] || false;
     group.add(createHandle(id, pos, "edge", edgeColor, isLocked));
   });
 
   // CENTER HANDLE (1)
-  const centerX = (corners.topLeft.x + corners.topRight.x + corners.bottomLeft.x + corners.bottomRight.x) / 4;
-  const centerZ = (corners.topLeft.z + corners.topRight.z + corners.bottomLeft.z + corners.bottomRight.z) / 4;
   const isCenterLocked = lockedHandles.center || false;
-  group.add(createHandle("center", { x: centerX, z: centerZ }, "center", centerColor, isCenterLocked));
+  if (isPointVisible(0, 0)) {
+    const centerX = (corners.topLeft.x + corners.topRight.x + corners.bottomLeft.x + corners.bottomRight.x) / 4;
+    const centerZ = (corners.topLeft.z + corners.topRight.z + corners.bottomLeft.z + corners.bottomRight.z) / 4;
+    group.add(createHandle("center", { x: centerX, z: centerZ }, "center", centerColor, isCenterLocked));
+  }
 
   // GRID HANDLES (25 specific points) - Only shown when enabled
   if (showGridHandles) {
     const gridHandles = generateGridHandles(corners);
 
     for (const gh of gridHandles) {
+      // Find original pitch placement to check visibility in section
+      let px = 0,
+        pz = 0;
+      if (PITCH_HANDLE_UVS[gh.id]) {
+        px = (PITCH_HANDLE_UVS[gh.id].u - 0.5) * pitchLength;
+        pz = (PITCH_HANDLE_UVS[gh.id].v - 0.5) * pitchWidth;
+      }
+
+      if (!isPointVisible(px, pz)) continue;
+
       // Apply any existing offset
       const offset = extendedHandles.gridOffsets[gh.id] || { dx: 0, dz: 0 };
       const isLocked = lockedHandles[gh.id] || false;
