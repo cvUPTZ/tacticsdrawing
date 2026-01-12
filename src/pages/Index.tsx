@@ -13,6 +13,7 @@ import { TopBar } from "@/components/analysis/TopBar";
 import { BottomBar } from "@/components/analysis/BottomBar";
 import { ToolPanel } from "@/components/analysis/ToolPanel";
 import { CalibrationPanel, CornerCalibrationPoint } from "@/components/analysis/CalibrationPanel";
+import { CalibrationPoint } from "@/components/analysis/PointCalibration";
 import { PitchTransform, DEFAULT_TRANSFORM } from "@/components/analysis/PitchTransformControls";
 import {
   PitchCorners,
@@ -150,6 +151,8 @@ export default function Index() {
     { id: "bottomLeft", label: "Bottom Left" },
     { id: "bottomRight", label: "Bottom Right" },
   ]);
+  const [calibrationPoints, setCalibrationPoints] = useState<CalibrationPoint[]>([]);
+  const [activePointId, setActivePointId] = useState<string | null>(null);
   const [gridOverlay, setGridOverlay] = useState<GridOverlayType>("none");
   const [draggingCorner, setDraggingCorner] = useState<string | null>(null);
   const [heatmapType, setHeatmapType] = useState<HeatmapType>("none");
@@ -215,9 +218,26 @@ export default function Index() {
 
   // Auto-calibrate from corner points
   const handleAutoCalibrate = useCallback(() => {
-    const allSet = cornerPoints.every((p) => p.screenX !== undefined && p.screenY !== undefined);
+    // Try to find corners in calibrationPoints first (new system)
+    const tl = calibrationPoints.find((p) => p.id === "corner_tl" || p.id === "topLeft");
+    const tr = calibrationPoints.find((p) => p.id === "corner_tr" || p.id === "topRight");
+    const bl = calibrationPoints.find((p) => p.id === "corner_bl" || p.id === "bottomLeft");
+    const br = calibrationPoints.find((p) => p.id === "corner_br" || p.id === "bottomRight");
+
+    // Fallback to legacy cornerPoints if not found in calibrationPoints
+    const finalTl = tl?.screenX !== undefined ? tl : cornerPoints.find((p) => p.id === "topLeft");
+    const finalTr = tr?.screenX !== undefined ? tr : cornerPoints.find((p) => p.id === "topRight");
+    const finalBl = bl?.screenX !== undefined ? bl : cornerPoints.find((p) => p.id === "bottomLeft");
+    const finalBr = br?.screenX !== undefined ? br : cornerPoints.find((p) => p.id === "bottomRight");
+
+    const allSet =
+      finalTl?.screenX !== undefined &&
+      finalTr?.screenX !== undefined &&
+      finalBl?.screenX !== undefined &&
+      finalBr?.screenX !== undefined;
+
     if (!allSet) {
-      toast.error("Please set all 4 corner points first");
+      toast.error("Please set at least the 4 corner points for auto-calibration");
       return;
     }
 
@@ -227,27 +247,24 @@ export default function Index() {
     const containerW = rect.width;
     const containerH = rect.height;
 
-    const tl = cornerPoints.find((p) => p.id === "topLeft")!;
-    const tr = cornerPoints.find((p) => p.id === "topRight")!;
-    const bl = cornerPoints.find((p) => p.id === "bottomLeft")!;
-    const br = cornerPoints.find((p) => p.id === "bottomRight")!;
-
-    const topWidth = (tr.screenX! - tl.screenX!) / containerW;
-    const bottomWidth = (br.screenX! - bl.screenX!) / containerW;
-    const leftHeight = (bl.screenY! - tl.screenY!) / containerH;
-    const rightHeight = (br.screenY! - tr.screenY!) / containerH;
+    // Use non-null assertion because we checked allSet
+    const topWidth = (finalTr!.screenX! - finalTl!.screenX!) / containerW;
+    const bottomWidth = (finalBr!.screenX! - finalBl!.screenX!) / containerW;
+    const leftHeight = (finalBl!.screenY! - finalTl!.screenY!) / containerH;
+    const rightHeight = (finalBr!.screenY! - finalTr!.screenY!) / containerH;
 
     const perspectiveRatio = topWidth / bottomWidth;
     const estimatedHeight = 30 + (1 - perspectiveRatio) * 80;
     const avgHeight = (leftHeight + rightHeight) / 2;
     const estimatedZ = 40 + (1 - avgHeight) * 60;
 
-    const topCenter = (tl.screenX! + tr.screenX!) / 2 / containerW;
-    const bottomCenter = (bl.screenX! + br.screenX!) / 2 / containerW;
+    const topCenter = (finalTl!.screenX! + finalTr!.screenX!) / 2 / containerW;
+    const bottomCenter = (finalBl!.screenX! + finalBr!.screenX!) / 2 / containerW;
     const horizontalOffset = (topCenter + bottomCenter) / 2 - 0.5;
     const estimatedRotY = -horizontalOffset * 0.5;
 
-    const verticalCenter = ((tl.screenY! + tr.screenY!) / 2 + (bl.screenY! + br.screenY!) / 2) / 2 / containerH;
+    const verticalCenter =
+      ((finalTl!.screenY! + finalTr!.screenY!) / 2 + (finalBl!.screenY! + finalBr!.screenY!) / 2) / 2 / containerH;
     const estimatedRotX = -(verticalCenter - 0.3) * 1.2;
 
     const avgWidth = (topWidth + bottomWidth) / 2;
@@ -265,7 +282,7 @@ export default function Index() {
 
     setPitchScale({ width: widthScale, height: 1 });
     toast.success("Camera calibrated from corner points!");
-  }, [cornerPoints, updateCalibration]);
+  }, [cornerPoints, calibrationPoints, updateCalibration]);
 
   // Detect formation from selected players
   const detectedFormation = useMemo(() => {
@@ -714,26 +731,25 @@ export default function Index() {
           <div
             className="flex-1 canvas-container relative"
             onClick={(e) => {
-              // Handle corner calibration clicks
-              if (isCornerCalibrating && activeCorner) {
+              // Handle calibration points clicks
+              if (isCornerCalibrating && activePointId) {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
 
-                setCornerPoints((prev) =>
-                  prev.map((p) => (p.id === activeCorner ? { ...p, screenX: x, screenY: y } : p)),
-                );
+                setCalibrationPoints((prev) => {
+                  const existing = prev.find((p) => p.id === activePointId);
+                  if (existing) {
+                    return prev.map((p) => (p.id === activePointId ? { ...p, screenX: x, screenY: y } : p));
+                  }
+                  // If it's a new point (from SOTA reference but not yet in our state?)
+                  // PointCalibration adds it to state on click.
+                  // But we need to update coordinates.
+                  // Actually PointCalibration adds it to the list with undefined screen coords.
+                  return prev;
+                });
 
-                // Move to next corner
-                const corners = ["topLeft", "topRight", "bottomRight", "bottomLeft"];
-                const currentIdx = corners.indexOf(activeCorner);
-                const nextCorner = corners[(currentIdx + 1) % 4];
-                const nextPoint = cornerPoints.find((p) => p.id === nextCorner);
-                if (nextPoint && nextPoint.screenX === undefined) {
-                  setActiveCorner(nextCorner);
-                } else {
-                  setActiveCorner(null);
-                }
+                setActivePointId(null);
               }
             }}
           >
@@ -772,8 +788,9 @@ export default function Index() {
             />
 
             {/* Corner calibration markers - draggable */}
+            {/* Calibration point markers - draggable */}
             {isCornerCalibrating &&
-              cornerPoints.map(
+              calibrationPoints.map(
                 (point) =>
                   point.screenX !== undefined &&
                   point.screenY !== undefined && (
@@ -782,14 +799,14 @@ export default function Index() {
                       className={`absolute w-5 h-5 -ml-2.5 -mt-2.5 border-2 rounded-full z-20 cursor-grab active:cursor-grabbing transition-all ${
                         draggingCorner === point.id
                           ? "border-accent bg-accent/50 scale-125"
-                          : activeCorner === point.id
+                          : activePointId === point.id
                             ? "border-primary bg-primary/50 scale-110"
                             : "border-primary bg-primary/30 hover:scale-110"
                       }`}
                       style={{ left: point.screenX, top: point.screenY }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setActiveCorner(point.id);
+                        setActivePointId(point.id);
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation();
@@ -803,7 +820,7 @@ export default function Index() {
                           const x = moveEvent.clientX - rect.left;
                           const y = moveEvent.clientY - rect.top;
 
-                          setCornerPoints((prev) =>
+                          setCalibrationPoints((prev) =>
                             prev.map((p) => (p.id === point.id ? { ...p, screenX: x, screenY: y } : p)),
                           );
                         };
@@ -818,7 +835,7 @@ export default function Index() {
                         window.addEventListener("mouseup", handleMouseUp);
                       }}
                     >
-                      <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] text-primary font-bold whitespace-nowrap bg-background/80 px-1 rounded pointer-events-none">
+                      <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] text-primary font-bold whitespace-nowrap bg-background/80 px-1.5 py-0.5 rounded shadow-sm pointer-events-none z-30">
                         {point.label}
                       </span>
                     </div>
@@ -912,6 +929,13 @@ export default function Index() {
             cornerPoints={cornerPoints}
             activeCorner={activeCorner}
             onSetActiveCorner={setActiveCorner}
+            // New Point Calibration props
+            calibrationPoints={calibrationPoints}
+            activePointId={activePointId}
+            onSetActivePoint={setActivePointId}
+            onAddPoint={(point) => setCalibrationPoints((prev) => [...prev, point])}
+            onRemovePoint={(id) => setCalibrationPoints((prev) => prev.filter((p) => p.id !== id))}
+            onClearPoints={() => setCalibrationPoints([])}
             onAutoCalibrate={handleAutoCalibrate}
             gridOverlay={gridOverlay}
             onGridOverlayChange={setGridOverlay}
