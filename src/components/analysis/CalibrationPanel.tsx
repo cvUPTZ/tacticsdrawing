@@ -11,6 +11,7 @@ import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
 import { DirectPitchManipulation, PitchControlPoint } from "./DirectPitchManipulation";
 import { SmartFieldPoints, FieldPoint } from "./SmartFieldpoints";
 import { BlenderPitchControls } from "./BlenderPitchControls";
+import { PointCalibration, CalibrationPoint } from "./PointCalibration";
 import { PitchCorners, LockedHandles, ExtendedHandles } from "./PitchManipulator";
 import { PitchSection, ZoomLevel } from "./PitchSectionSelector";
 
@@ -40,6 +41,13 @@ interface CalibrationPanelProps {
   cornerPoints?: CornerCalibrationPoint[];
   activeCorner?: string | null;
   onSetActiveCorner?: (corner: string | null) => void;
+  // New Point Calibration Props
+  calibrationPoints?: CalibrationPoint[];
+  activePointId?: string | null;
+  onSetActivePoint?: (id: string | null) => void;
+  onAddPoint?: (point: CalibrationPoint) => void;
+  onRemovePoint?: (id: string) => void;
+  onClearPoints?: () => void;
   onAutoCalibrate?: () => void;
   gridOverlay?: GridOverlayType;
   onGridOverlayChange?: (overlay: GridOverlayType) => void;
@@ -118,6 +126,13 @@ export const CalibrationPanel = forwardRef<HTMLDivElement, CalibrationPanelProps
   cornerPoints = [],
   activeCorner,
   onSetActiveCorner,
+  // New props destructuring
+  calibrationPoints = [],
+  activePointId,
+  onSetActivePoint,
+  onAddPoint,
+  onRemovePoint,
+  onClearPoints,
   onAutoCalibrate,
   gridOverlay = "none",
   onGridOverlayChange,
@@ -471,62 +486,19 @@ export const CalibrationPanel = forwardRef<HTMLDivElement, CalibrationPanelProps
             />
           )}
 
-          {/* Manual Corner Calibration */}
+          {/* Manual Point Calibration */}
           {onToggleCornerCalibrating && (
-            <div className="space-y-2">
-              <Button
-                onClick={onToggleCornerCalibrating}
-                variant={isCornerCalibrating ? "default" : "outline"}
-                className="w-full h-7 text-[10px]"
-              >
-                <MousePointer2 className="h-3 w-3 mr-1.5" />
-                Manual Calibration
-                <span className="ml-auto text-[9px]">{isCornerCalibrating ? "Done" : "Start"}</span>
-              </Button>
-
-              {isCornerCalibrating && (
-                <div className="space-y-2 p-2 bg-muted/30 rounded-md">
-                  <p className="text-[9px] text-muted-foreground leading-tight">
-                    Click corners below, then click on the video where each corner should be:
-                  </p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {cornerLabels.map((corner) => {
-                      const point = cornerPoints.find((p) => p.id === corner.id);
-                      const isSet = point?.screenX !== undefined;
-                      const isActive = activeCorner === corner.id;
-                      return (
-                        <Button
-                          key={corner.id}
-                          onClick={() => onSetActiveCorner?.(isActive ? null : corner.id)}
-                          variant={isActive ? "default" : "outline"}
-                          className={`h-7 text-[9px] gap-1 ${isSet ? "border-primary/50" : ""}`}
-                        >
-                          {corner.icon} {corner.label}
-                          {isSet && <span className="ml-auto">✓</span>}
-                        </Button>
-                      );
-                    })}
-                  </div>
-
-                  {onAutoCalibrate && cornerPoints.filter((p) => p.screenX !== undefined).length === 4 && (
-                    <Button onClick={onAutoCalibrate} className="w-full h-6 text-[9px]" variant="default">
-                      <Wand2 className="h-3 w-3 mr-1" />
-                      Auto-Calibrate from Points
-                    </Button>
-                  )}
-
-                  <Button
-                    onClick={() => {
-                      cornerLabels.forEach((c) => onSetActiveCorner?.(null));
-                    }}
-                    variant="ghost"
-                    className="w-full h-6 text-[9px] text-muted-foreground"
-                  >
-                    Clear All Points
-                  </Button>
-                </div>
-              )}
-            </div>
+            <PointCalibration
+              isActive={isCornerCalibrating}
+              onToggle={onToggleCornerCalibrating}
+              points={calibrationPoints}
+              activePointId={activePointId}
+              onSetActivePoint={onSetActivePoint}
+              onAddPoint={onAddPoint}
+              onRemovePoint={onRemovePoint}
+              onClearPoints={onClearPoints}
+              onAutoCalibrate={onAutoCalibrate || (() => { })}
+            />
           )}
 
           {/* Grid Overlay */}
