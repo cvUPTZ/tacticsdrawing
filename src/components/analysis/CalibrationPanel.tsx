@@ -11,7 +11,7 @@ import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
 import { DirectPitchManipulation, PitchControlPoint } from "./DirectPitchManipulation";
 import { SmartFieldPoints, FieldPoint } from "./SmartFieldpoints";
 import { BlenderPitchControls } from "./BlenderPitchControls";
-import { PitchCorners, LockedHandles, ExtendedHandles } from "./PitchManipulator";
+import { PitchCorners, LockedHandles } from "./PitchManipulator";
 import { PitchSection, ZoomLevel } from "./PitchSectionSelector";
 
 interface PitchScale {
@@ -77,17 +77,6 @@ interface CalibrationPanelProps {
   // Handle locks
   lockedHandles?: LockedHandles;
   onLockedHandlesChange?: (locked: LockedHandles) => void;
-  // Grid handles
-  showGridHandles?: boolean;
-  onShowGridHandlesChange?: (show: boolean) => void;
-  extendedHandles?: ExtendedHandles;
-  onExtendedHandlesChange?: (handles: ExtendedHandles) => void;
-  // Snapping
-  enableSnapping?: boolean;
-  onEnableSnappingChange?: (enable: boolean) => void;
-  // Lens distortion
-  lensDistortion?: number;
-  onLensDistortionChange?: (distortion: number) => void;
   // Pitch section selection
   selectedPitchSection?: PitchSection;
   selectedZoomLevel?: ZoomLevel;
@@ -151,16 +140,8 @@ export function CalibrationPanel({
   onPitchCornersReset,
   lockedHandles,
   onLockedHandlesChange,
-  showGridHandles = false,
-  onShowGridHandlesChange,
-  extendedHandles,
-  onExtendedHandlesChange,
-  enableSnapping = true,
-  onEnableSnappingChange,
-  lensDistortion = 0,
-  onLensDistortionChange,
-  selectedPitchSection = "full",
-  selectedZoomLevel = "wide",
+  selectedPitchSection = 'full',
+  selectedZoomLevel = 'wide',
   onPitchSectionChange,
   onZoomLevelChange,
   pitchSectionConfirmed = false,
@@ -429,14 +410,6 @@ export function CalibrationPanel({
               onReset={onPitchCornersReset}
               lockedHandles={lockedHandles}
               onLockedHandlesChange={onLockedHandlesChange}
-              showGridHandles={showGridHandles}
-              onShowGridHandlesChange={onShowGridHandlesChange}
-              extendedHandles={extendedHandles}
-              onExtendedHandlesChange={onExtendedHandlesChange}
-              enableSnapping={enableSnapping}
-              onEnableSnappingChange={onEnableSnappingChange}
-              lensDistortion={lensDistortion}
-              onLensDistortionChange={onLensDistortionChange}
               selectedSection={selectedPitchSection}
               selectedZoom={selectedZoomLevel}
               onSectionChange={onPitchSectionChange}
