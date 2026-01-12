@@ -166,7 +166,7 @@ export default function Index() {
   const [pitchSectionConfirmed, setPitchSectionConfirmed] = useState(false);
 
   // New pitch manipulation state
-  const [showGridHandles, setShowGridHandles] = useState(false);
+  const [showGridHandles, setShowGridHandles] = useState(true);
   const [enableSnapping, setEnableSnapping] = useState(true);
   const [lensDistortion, setLensDistortion] = useState(0);
   const [extendedHandles, setExtendedHandles] = useState<ExtendedHandles>(DEFAULT_EXTENDED_HANDLES);
