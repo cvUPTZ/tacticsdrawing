@@ -9,15 +9,14 @@ export interface PitchCorners {
 }
 
 export interface LockedHandles {
-  topLeft: boolean;
-  topRight: boolean;
-  bottomLeft: boolean;
-  bottomRight: boolean;
-  top: boolean;
-  bottom: boolean;
-  left: boolean;
-  right: boolean;
-  center: boolean;
+  [key: string]: boolean;
+}
+
+export interface GridHandle {
+  id: string;
+  x: number;
+  z: number;
+  type: 'corner' | 'edge' | 'center' | 'grid';
 }
 
 export const DEFAULT_CORNERS: PitchCorners = {
@@ -39,14 +38,133 @@ export const DEFAULT_LOCKED_HANDLES: LockedHandles = {
   center: false,
 };
 
+// Pitch line reference points for snapping
+export const PITCH_SNAP_LINES = {
+  // Vertical lines (x-values)
+  verticals: [
+    { x: -52.5, label: 'Left touchline' },
+    { x: -36, label: 'Left penalty box edge' },
+    { x: -47, label: 'Left goal area edge' },
+    { x: 0, label: 'Halfway line' },
+    { x: 36, label: 'Right penalty box edge' },
+    { x: 47, label: 'Right goal area edge' },
+    { x: 52.5, label: 'Right touchline' },
+  ],
+  // Horizontal lines (z-values)
+  horizontals: [
+    { z: -34, label: 'Top goal line' },
+    { z: -20.16, label: 'Top penalty box' },
+    { z: -9.16, label: 'Top goal area' },
+    { z: 0, label: 'Center line' },
+    { z: 9.16, label: 'Bottom goal area' },
+    { z: 20.16, label: 'Bottom penalty box' },
+    { z: 34, label: 'Bottom goal line' },
+  ],
+};
+
+// Snapping threshold in world units
+export const SNAP_THRESHOLD = 3;
+
+export function snapToLine(value: number, axis: 'x' | 'z', threshold: number = SNAP_THRESHOLD): { value: number; snapped: boolean; label?: string } {
+  const lines = axis === 'x' ? PITCH_SNAP_LINES.verticals : PITCH_SNAP_LINES.horizontals;
+  const key = axis === 'x' ? 'x' : 'z';
+  
+  for (const line of lines) {
+    const lineValue = (line as any)[key];
+    if (Math.abs(value - lineValue) < threshold) {
+      return { value: lineValue, snapped: true, label: line.label };
+    }
+  }
+  
+  return { value, snapped: false };
+}
+
 interface HandleInfo {
   id: string;
-  type: "corner" | "edge" | "center";
+  type: "corner" | "edge" | "center" | "grid";
   position: THREE.Vector3;
   cursor: string;
 }
 
-export function createPitchFromCorners(corners: PitchCorners): THREE.Group {
+// Generate additional grid handles for fine control
+export function generateGridHandles(corners: PitchCorners, density: number = 5): GridHandle[] {
+  const handles: GridHandle[] = [];
+  
+  // Bilinear interpolation helper
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+  const getGridPoint = (u: number, v: number) => {
+    const topX = lerp(corners.topLeft.x, corners.topRight.x, u);
+    const topZ = lerp(corners.topLeft.z, corners.topRight.z, u);
+    const botX = lerp(corners.bottomLeft.x, corners.bottomRight.x, u);
+    const botZ = lerp(corners.bottomLeft.z, corners.bottomRight.z, u);
+    return {
+      x: lerp(topX, botX, v),
+      z: lerp(topZ, botZ, v),
+    };
+  };
+  
+  // Add grid points (skip edges and corners)
+  for (let i = 1; i < density; i++) {
+    for (let j = 1; j < density; j++) {
+      const u = i / density;
+      const v = j / density;
+      const point = getGridPoint(u, v);
+      handles.push({
+        id: `grid_${i}_${j}`,
+        x: point.x,
+        z: point.z,
+        type: 'grid',
+      });
+    }
+  }
+  
+  // Add midpoints between corners on each edge
+  const edgeMidpoints = [
+    // Top edge
+    { id: 'edge_t1', u: 0.25, v: 0 },
+    { id: 'edge_t2', u: 0.5, v: 0 },
+    { id: 'edge_t3', u: 0.75, v: 0 },
+    // Bottom edge
+    { id: 'edge_b1', u: 0.25, v: 1 },
+    { id: 'edge_b2', u: 0.5, v: 1 },
+    { id: 'edge_b3', u: 0.75, v: 1 },
+    // Left edge
+    { id: 'edge_l1', u: 0, v: 0.25 },
+    { id: 'edge_l2', u: 0, v: 0.5 },
+    { id: 'edge_l3', u: 0, v: 0.75 },
+    // Right edge
+    { id: 'edge_r1', u: 1, v: 0.25 },
+    { id: 'edge_r2', u: 1, v: 0.5 },
+    { id: 'edge_r3', u: 1, v: 0.75 },
+  ];
+  
+  for (const ep of edgeMidpoints) {
+    const point = getGridPoint(ep.u, ep.v);
+    handles.push({
+      id: ep.id,
+      x: point.x,
+      z: point.z,
+      type: 'edge',
+    });
+  }
+  
+  return handles;
+}
+
+// Extended handles state including grid points
+export interface ExtendedHandles {
+  gridOffsets: Record<string, { dx: number; dz: number }>;
+}
+
+export const DEFAULT_EXTENDED_HANDLES: ExtendedHandles = {
+  gridOffsets: {},
+};
+
+export function createPitchFromCorners(
+  corners: PitchCorners, 
+  extendedHandles: ExtendedHandles = DEFAULT_EXTENDED_HANDLES,
+  lensDistortion: number = 0
+): THREE.Group {
   const group = new THREE.Group();
 
   const lineMat = new THREE.LineBasicMaterial({
@@ -67,12 +185,74 @@ export function createPitchFromCorners(corners: PitchCorners): THREE.Group {
     z: lerp(p1.z, p2.z, t),
   });
 
-  // Bilinear interpolation for any point on the pitch
+  // Apply lens distortion correction (barrel/pincushion)
+  const applyDistortion = (x: number, z: number): { x: number; z: number } => {
+    if (lensDistortion === 0) return { x, z };
+    
+    // Normalize to center
+    const cx = (corners.topLeft.x + corners.topRight.x + corners.bottomLeft.x + corners.bottomRight.x) / 4;
+    const cz = (corners.topLeft.z + corners.topRight.z + corners.bottomLeft.z + corners.bottomRight.z) / 4;
+    
+    const dx = x - cx;
+    const dz = z - cz;
+    const r = Math.sqrt(dx * dx + dz * dz);
+    const maxR = 60; // Approximate max distance
+    const normalizedR = r / maxR;
+    
+    // Barrel distortion formula: r' = r * (1 + k * r^2)
+    const k = lensDistortion * 0.01; // Scale the distortion factor
+    const factor = 1 + k * normalizedR * normalizedR;
+    
+    return {
+      x: cx + dx * factor,
+      z: cz + dz * factor,
+    };
+  };
+
+  // Bilinear interpolation for any point on the pitch with grid handle offsets
   const getPitchPoint = (u: number, v: number): THREE.Vector3 => {
     const topPoint = lerpPoint(corners.topLeft, corners.topRight, u);
     const bottomPoint = lerpPoint(corners.bottomLeft, corners.bottomRight, u);
-    const point = lerpPoint(topPoint, bottomPoint, v);
-    return new THREE.Vector3(point.x, 0.01, point.z);
+    let point = lerpPoint(topPoint, bottomPoint, v);
+    
+    // Apply any grid offsets with weighted influence
+    const gridOffsets = extendedHandles.gridOffsets;
+    if (Object.keys(gridOffsets).length > 0) {
+      let totalWeight = 0;
+      let offsetX = 0;
+      let offsetZ = 0;
+      
+      for (const [handleId, offset] of Object.entries(gridOffsets)) {
+        // Parse grid position from handle ID
+        const match = handleId.match(/grid_(\d+)_(\d+)/);
+        if (match) {
+          const gridU = parseInt(match[1]) / 5; // Assuming density 5
+          const gridV = parseInt(match[2]) / 5;
+          
+          // Calculate distance-based weight (gaussian falloff)
+          const distU = u - gridU;
+          const distV = v - gridV;
+          const dist = Math.sqrt(distU * distU + distV * distV);
+          const sigma = 0.3; // Influence radius
+          const weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
+          
+          if (weight > 0.01) {
+            offsetX += offset.dx * weight;
+            offsetZ += offset.dz * weight;
+            totalWeight += weight;
+          }
+        }
+      }
+      
+      if (totalWeight > 0) {
+        point.x += offsetX / totalWeight;
+        point.z += offsetZ / totalWeight;
+      }
+    }
+    
+    // Apply lens distortion
+    const distorted = applyDistortion(point.x, point.z);
+    return new THREE.Vector3(distorted.x, 0.01, distorted.z);
   };
 
   const pitchLength = 105;
@@ -255,32 +435,37 @@ export function createPitchFromCorners(corners: PitchCorners): THREE.Group {
 export function createManipulationHandles(
   corners: PitchCorners, 
   activeHandle: string | null,
-  lockedHandles: LockedHandles = DEFAULT_LOCKED_HANDLES
+  lockedHandles: LockedHandles = DEFAULT_LOCKED_HANDLES,
+  showGridHandles: boolean = false,
+  extendedHandles: ExtendedHandles = DEFAULT_EXTENDED_HANDLES
 ): THREE.Group {
   const group = new THREE.Group();
 
-  // MUCH LARGER HANDLES
+  // Handle sizes
   const cornerHandleSize = 3.5;
   const edgeHandleSize = 2.5;
   const centerHandleSize = 3;
+  const gridHandleSize = 1.8;
 
-  // BRIGHT COLORS
+  // Colors
   const activeColor = 0x00ff88;
   const cornerColor = 0xffaa00;
   const edgeColor = 0x00d4ff;
   const centerColor = 0xff4488;
+  const gridColor = 0x88ff88;
   const lockedColor = 0x666666;
 
-  const createHandle = (id: string, pos: { x: number; z: number }, isCorner: boolean, baseColor: number, isLocked: boolean = false) => {
+  const createHandle = (id: string, pos: { x: number; z: number }, handleType: 'corner' | 'edge' | 'center' | 'grid', baseColor: number, isLocked: boolean = false) => {
     const isActive = activeHandle === id;
-    const size = isCorner ? cornerHandleSize : id === "center" ? centerHandleSize : edgeHandleSize;
+    const size = handleType === 'corner' ? cornerHandleSize : 
+                 handleType === 'center' ? centerHandleSize :
+                 handleType === 'grid' ? gridHandleSize : edgeHandleSize;
     const handleGroup = new THREE.Group();
     
-    // Use locked color if handle is locked
     const displayColor = isLocked ? lockedColor : (isActive ? activeColor : baseColor);
     const displayOpacity = isLocked ? 0.5 : 1.0;
 
-    // MAIN SPHERE - Large and bright
+    // MAIN SPHERE
     const sphereGeometry = new THREE.SphereGeometry(size * 0.6, 24, 24);
     const sphereMaterial = new THREE.MeshBasicMaterial({
       color: displayColor,
@@ -290,40 +475,43 @@ export function createManipulationHandles(
     });
     const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
     sphere.position.set(pos.x, size, pos.z);
-    sphere.userData = { handleId: id, isLocked };
+    sphere.userData = { handleId: id, isLocked, handleType };
     sphere.renderOrder = 999;
     handleGroup.add(sphere);
 
-    // OUTER GLOW RING
-    const ringGeometry = new THREE.RingGeometry(size * 0.8, size * 1.1, 32);
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: displayColor,
-      transparent: true,
-      opacity: isLocked ? 0.4 : 0.8,
-      side: THREE.DoubleSide,
-      depthTest: false,
-    });
-    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(pos.x, 0.1, pos.z);
-    ring.userData = { handleId: id, isLocked };
-    ring.renderOrder = 998;
-    handleGroup.add(ring);
+    // Only add ring and pole for non-grid handles (to reduce visual clutter)
+    if (handleType !== 'grid') {
+      // OUTER GLOW RING
+      const ringGeometry = new THREE.RingGeometry(size * 0.8, size * 1.1, 32);
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: displayColor,
+        transparent: true,
+        opacity: isLocked ? 0.4 : 0.8,
+        side: THREE.DoubleSide,
+        depthTest: false,
+      });
+      const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(pos.x, 0.1, pos.z);
+      ring.userData = { handleId: id, isLocked, handleType };
+      ring.renderOrder = 998;
+      handleGroup.add(ring);
 
-    // VERTICAL POLE
-    const poleHeight = size * 2;
-    const poleGeometry = new THREE.CylinderGeometry(size * 0.2, size * 0.2, poleHeight, 12);
-    const poleMaterial = new THREE.MeshBasicMaterial({
-      color: displayColor,
-      transparent: true,
-      opacity: isLocked ? 0.4 : 0.9,
-      depthTest: false,
-    });
-    const pole = new THREE.Mesh(poleGeometry, poleMaterial);
-    pole.position.set(pos.x, poleHeight / 2, pos.z);
-    pole.userData = { handleId: id, isLocked };
-    pole.renderOrder = 997;
-    handleGroup.add(pole);
+      // VERTICAL POLE
+      const poleHeight = size * 2;
+      const poleGeometry = new THREE.CylinderGeometry(size * 0.2, size * 0.2, poleHeight, 12);
+      const poleMaterial = new THREE.MeshBasicMaterial({
+        color: displayColor,
+        transparent: true,
+        opacity: isLocked ? 0.4 : 0.9,
+        depthTest: false,
+      });
+      const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+      pole.position.set(pos.x, poleHeight / 2, pos.z);
+      pole.userData = { handleId: id, isLocked, handleType };
+      pole.renderOrder = 997;
+      handleGroup.add(pole);
+    }
 
     // GROUND CIRCLE
     const groundGeometry = new THREE.CircleGeometry(size * 0.5, 32);
@@ -337,12 +525,12 @@ export function createManipulationHandles(
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(pos.x, 0.02, pos.z);
-    ground.userData = { handleId: id, isLocked };
+    ground.userData = { handleId: id, isLocked, handleType };
     ground.renderOrder = 996;
     handleGroup.add(ground);
 
     // EDGE OUTLINE for corners (or lock indicator)
-    if (isCorner || isLocked) {
+    if (handleType === 'corner' || isLocked) {
       const edgesGeo = new THREE.EdgesGeometry(sphereGeometry);
       const edgesMat = new THREE.LineBasicMaterial({
         color: isLocked ? 0xff4444 : 0xffffff,
@@ -350,7 +538,7 @@ export function createManipulationHandles(
       });
       const edges = new THREE.LineSegments(edgesGeo, edgesMat);
       edges.position.copy(sphere.position);
-      edges.userData = { handleId: id, isLocked };
+      edges.userData = { handleId: id, isLocked, handleType };
       edges.renderOrder = 1000;
       handleGroup.add(edges);
     }
@@ -386,8 +574,8 @@ export function createManipulationHandles(
     { id: "bottomLeft", pos: corners.bottomLeft },
     { id: "bottomRight", pos: corners.bottomRight },
   ].forEach(({ id, pos }) => {
-    const isLocked = lockedHandles[id as keyof LockedHandles] || false;
-    group.add(createHandle(id, pos, true, cornerColor, isLocked));
+    const isLocked = lockedHandles[id] || false;
+    group.add(createHandle(id, pos, 'corner', cornerColor, isLocked));
   });
 
   // EDGE HANDLES (4)
@@ -412,19 +600,31 @@ export function createManipulationHandles(
       pos: { x: (corners.topRight.x + corners.bottomRight.x) / 2, z: (corners.topRight.z + corners.bottomRight.z) / 2 },
     },
   ].forEach(({ id, pos }) => {
-    const isLocked = lockedHandles[id as keyof LockedHandles] || false;
-    group.add(createHandle(id, pos, false, edgeColor, isLocked));
+    const isLocked = lockedHandles[id] || false;
+    group.add(createHandle(id, pos, 'edge', edgeColor, isLocked));
   });
 
   // CENTER HANDLE (1)
   const centerX = (corners.topLeft.x + corners.topRight.x + corners.bottomLeft.x + corners.bottomRight.x) / 4;
   const centerZ = (corners.topLeft.z + corners.topRight.z + corners.bottomLeft.z + corners.bottomRight.z) / 4;
   const isCenterLocked = lockedHandles.center || false;
-  group.add(createHandle("center", { x: centerX, z: centerZ }, false, centerColor, isCenterLocked));
+  group.add(createHandle("center", { x: centerX, z: centerZ }, 'center', centerColor, isCenterLocked));
+
+  // GRID HANDLES (20+) - Only shown when enabled
+  if (showGridHandles) {
+    const gridHandles = generateGridHandles(corners, 5);
+    
+    for (const gh of gridHandles) {
+      // Apply any existing offset
+      const offset = extendedHandles.gridOffsets[gh.id] || { dx: 0, dz: 0 };
+      const isLocked = lockedHandles[gh.id] || false;
+      group.add(createHandle(gh.id, { x: gh.x + offset.dx, z: gh.z + offset.dz }, gh.type, gridColor, isLocked));
+    }
+  }
 
   console.log("✅ Created manipulation handles:", {
-    totalHandles: 9,
-    groupChildren: group.children.length,
+    totalHandles: group.children.length,
+    showGridHandles,
     lockedHandles: Object.entries(lockedHandles).filter(([_, v]) => v).map(([k]) => k),
   });
 
