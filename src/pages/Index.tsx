@@ -183,6 +183,7 @@ export default function Index() {
 
   // Tactical View state
   const [showTacticalView, setShowTacticalView] = useState(false);
+  const [showPitch, setShowPitch] = useState(true);
 
   const handlePitchTransformReset = useCallback(() => {
     setPitchTransform(DEFAULT_TRANSFORM);
@@ -718,6 +719,8 @@ export default function Index() {
             hasVideo={!!videoSrc}
             showTacticalView={showTacticalView}
             onToggleTacticalView={setShowTacticalView}
+            showPitch={showPitch}
+            onTogglePitch={setShowPitch}
           />
           <AnnotationsList
             annotations={annotations}
@@ -788,6 +791,7 @@ export default function Index() {
               activeControlPointId={activeControlPointId}
               videoElement={videoRef.current}
               showTacticalView={showTacticalView}
+              showPitch={showPitch}
             />
 
             {/* Corner calibration markers - draggable */}
