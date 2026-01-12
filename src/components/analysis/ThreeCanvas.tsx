@@ -151,6 +151,23 @@ export function ThreeCanvas({
   const lastMouseRef = useRef({ x: 0, y: 0 });
   const orbitRef = useRef({ theta: 0, phi: Math.PI / 4, radius: 80 }); // Spherical coords
 
+  // Sync refs to avoid stale closures in event listeners
+  const pitchCornersRef = useRef(pitchCorners);
+  const extendedHandlesRef = useRef(extendedHandles);
+  const lockedHandlesRef = useRef(lockedHandles);
+  const enableSnappingRef = useRef(enableSnapping);
+  const onPitchCornersChangeRef = useRef(onPitchCornersChange);
+  const onExtendedHandlesChangeRef = useRef(onExtendedHandlesChange);
+
+  useEffect(() => {
+    pitchCornersRef.current = pitchCorners;
+    extendedHandlesRef.current = extendedHandles;
+    lockedHandlesRef.current = lockedHandles;
+    enableSnappingRef.current = enableSnapping;
+    onPitchCornersChangeRef.current = onPitchCornersChange;
+    onExtendedHandlesChangeRef.current = onExtendedHandlesChange;
+  }, [pitchCorners, extendedHandles, lockedHandles, enableSnapping, onPitchCornersChange, onExtendedHandlesChange]);
+
   // Sync ref with state
   useEffect(() => {
     activeHandleRef.current = activeHandle;
@@ -536,7 +553,7 @@ export function ThreeCanvas({
 
         if (handleId) {
           // Check if this handle is locked
-          if (lockedHandles[handleId as keyof LockedHandles]) {
+          if (lockedHandlesRef.current[handleId as keyof LockedHandles]) {
             console.log("🔒 Handle is locked:", handleId);
             return; // Don't allow dragging locked handles
           }
@@ -552,7 +569,7 @@ export function ThreeCanvas({
             setActiveHandle(handleId); // Update state for UI re-renders
             isDraggingHandleRef.current = true;
             dragStartRef.current = worldPos;
-            cornersStartRef.current = { ...pitchCorners };
+            cornersStartRef.current = { ...pitchCornersRef.current };
             container.style.cursor = "grabbing";
 
             console.log("🎯 Handle grabbed:", handleId);
@@ -597,46 +614,46 @@ export function ThreeCanvas({
             }
             break;
           case "top":
-            if (!lockedHandles.top && !lockedHandles.topLeft) {
+            if (!lockedHandlesRef.current.top && !lockedHandlesRef.current.topLeft) {
               newCorners.topLeft = { x: start.topLeft.x, z: start.topLeft.z + deltaZ };
             }
-            if (!lockedHandles.top && !lockedHandles.topRight) {
+            if (!lockedHandlesRef.current.top && !lockedHandlesRef.current.topRight) {
               newCorners.topRight = { x: start.topRight.x, z: start.topRight.z + deltaZ };
             }
             break;
           case "bottom":
-            if (!lockedHandles.bottom && !lockedHandles.bottomLeft) {
+            if (!lockedHandlesRef.current.bottom && !lockedHandlesRef.current.bottomLeft) {
               newCorners.bottomLeft = { x: start.bottomLeft.x, z: start.bottomLeft.z + deltaZ };
             }
-            if (!lockedHandles.bottom && !lockedHandles.bottomRight) {
+            if (!lockedHandlesRef.current.bottom && !lockedHandlesRef.current.bottomRight) {
               newCorners.bottomRight = { x: start.bottomRight.x, z: start.bottomRight.z + deltaZ };
             }
             break;
           case "left":
-            if (!lockedHandles.left && !lockedHandles.topLeft) {
+            if (!lockedHandlesRef.current.left && !lockedHandlesRef.current.topLeft) {
               newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z };
             }
-            if (!lockedHandles.left && !lockedHandles.bottomLeft) {
+            if (!lockedHandlesRef.current.left && !lockedHandlesRef.current.bottomLeft) {
               newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z };
             }
             break;
           case "right":
-            if (!lockedHandles.right && !lockedHandles.topRight) {
+            if (!lockedHandlesRef.current.right && !lockedHandlesRef.current.topRight) {
               newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z };
             }
-            if (!lockedHandles.right && !lockedHandles.bottomRight) {
+            if (!lockedHandlesRef.current.right && !lockedHandlesRef.current.bottomRight) {
               newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z };
             }
             break;
           case "center":
-            if (!lockedHandles.center) {
-              if (!lockedHandles.topLeft)
+            if (!lockedHandlesRef.current.center) {
+              if (!lockedHandlesRef.current.topLeft)
                 newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
-              if (!lockedHandles.topRight)
+              if (!lockedHandlesRef.current.topRight)
                 newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
-              if (!lockedHandles.bottomLeft)
+              if (!lockedHandlesRef.current.bottomLeft)
                 newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
-              if (!lockedHandles.bottomRight)
+              if (!lockedHandlesRef.current.bottomRight)
                 newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
             }
             break;
@@ -654,7 +671,7 @@ export function ThreeCanvas({
               "center",
             ];
             if (!mainHandles.includes(activeHandleRef.current)) {
-              const currentExtended = { ...extendedHandles };
+              const currentExtended = { ...extendedHandlesRef.current };
               const currentOffsets = { ...currentExtended.gridOffsets };
 
               currentOffsets[activeHandleRef.current] = {
@@ -662,7 +679,7 @@ export function ThreeCanvas({
                 dz: (currentOffsets[activeHandleRef.current]?.dz || 0) + deltaZ,
               };
 
-              onExtendedHandlesChange?.({
+              onExtendedHandlesChangeRef.current?.({
                 ...currentExtended,
                 gridOffsets: currentOffsets,
               });
@@ -675,7 +692,7 @@ export function ThreeCanvas({
         }
 
         // Apply snapping if enabled
-        if (enableSnapping) {
+        if (enableSnappingRef.current) {
           const corners = ["topLeft", "topRight", "bottomLeft", "bottomRight"] as const;
           for (const corner of corners) {
             const snapX = snapToLine(newCorners[corner].x, "x");
@@ -685,7 +702,7 @@ export function ThreeCanvas({
           }
         }
 
-        onPitchCornersChange?.(newCorners);
+        onPitchCornersChangeRef.current?.(newCorners);
         return; // Skip cursor hover logic while dragging
       }
 
