@@ -5,7 +5,7 @@ import { HeatmapType, HeatmapOverlay, getHeatmapColor } from "./HeatmapOverlay";
 import { createSOTAPitch, PITCH_REFERENCE_POINTS } from "./SOTAPitch";
 import { CalibrationPoint } from "./PointCalibration";
 import { PitchTransform, DEFAULT_TRANSFORM } from "./PitchTransformControls";
-import { PitchCorners, DEFAULT_CORNERS, createPitchFromCorners, createManipulationHandles, LockedHandles, DEFAULT_LOCKED_HANDLES } from "./PitchManipulator";
+import { PitchCorners, DEFAULT_CORNERS, createPitchFromCorners, createManipulationHandles, LockedHandles, DEFAULT_LOCKED_HANDLES, ExtendedHandles, DEFAULT_EXTENDED_HANDLES, snapToLine } from "./PitchManipulator";
 
 interface PitchScale {
   width: number;
@@ -32,6 +32,14 @@ interface ThreeCanvasProps {
   onPitchCornersChange?: (corners: PitchCorners) => void;
   isPitchManipulating?: boolean;
   lockedHandles?: LockedHandles;
+  // Grid handles
+  showGridHandles?: boolean;
+  extendedHandles?: ExtendedHandles;
+  onExtendedHandlesChange?: (handles: ExtendedHandles) => void;
+  // Snapping
+  enableSnapping?: boolean;
+  // Lens distortion
+  lensDistortion?: number;
   // Direct manipulation props (for control points)
   isDirectManipulating?: boolean;
   pitchControlPoints?: any[];
@@ -94,6 +102,11 @@ export function ThreeCanvas({
   onPitchCornersChange,
   isPitchManipulating = false,
   lockedHandles = DEFAULT_LOCKED_HANDLES,
+  showGridHandles = false,
+  extendedHandles = DEFAULT_EXTENDED_HANDLES,
+  onExtendedHandlesChange,
+  enableSnapping = true,
+  lensDistortion = 0,
   isDirectManipulating = false,
   pitchControlPoints = [],
   activeControlPointId = null,
@@ -361,7 +374,7 @@ export function ThreeCanvas({
 
     // Use corner-based pitch when manipulating, otherwise use SOTA
     if (isPitchManipulating) {
-      const cornerPitch = createPitchFromCorners(pitchCorners);
+      const cornerPitch = createPitchFromCorners(pitchCorners, extendedHandles, lensDistortion);
       pitchGroup.add(cornerPitch);
     } else if (useSOTAPitch) {
       const sotaPitch = createSOTAPitch(pitchScale);
@@ -416,7 +429,7 @@ export function ThreeCanvas({
       pitchGroup.rotation.set(0, 0, 0);
       pitchGroup.scale.set(1, 1, 1);
     }
-  }, [pitchScale, useSOTAPitch, pitchTransform, isPitchManipulating, pitchCorners]);
+  }, [pitchScale, useSOTAPitch, pitchTransform, isPitchManipulating, pitchCorners, extendedHandles, lensDistortion]);
 
   // Render manipulation handles when in manipulation mode
   useEffect(() => {
@@ -436,9 +449,9 @@ export function ThreeCanvas({
 
     // We read activeHandle from ref inside createManipulationHandles or pass it
     // The dependency array includes pitchCorners and activeHandle, so this re-renders handles correctly.
-    const handles = createManipulationHandles(pitchCorners, activeHandle, lockedHandles);
+    const handles = createManipulationHandles(pitchCorners, activeHandle, lockedHandles, showGridHandles, extendedHandles);
     handlesGroup.add(handles);
-  }, [isPitchManipulating, pitchCorners, activeHandle, lockedHandles]);
+  }, [isPitchManipulating, pitchCorners, activeHandle, lockedHandles, showGridHandles, extendedHandles]);
 
   // FIXED MOUSE EVENT HANDLING FOR PITCH MANIPULATION
   useEffect(() => {
@@ -572,6 +585,17 @@ export function ThreeCanvas({
             break;
         }
 
+        // Apply snapping if enabled
+        if (enableSnapping) {
+          const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'] as const;
+          for (const corner of corners) {
+            const snapX = snapToLine(newCorners[corner].x, 'x');
+            const snapZ = snapToLine(newCorners[corner].z, 'z');
+            if (snapX.snapped) newCorners[corner].x = snapX.value;
+            if (snapZ.snapped) newCorners[corner].z = snapZ.value;
+          }
+        }
+        
         onPitchCornersChange?.(newCorners);
         return; // Skip cursor hover logic while dragging
       }

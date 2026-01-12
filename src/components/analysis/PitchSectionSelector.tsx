@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Focus, ZoomIn, ZoomOut, Maximize, Eye, Check } from "lucide-react";
+import { PitchCorners, DEFAULT_CORNERS } from "./PitchManipulator";
 
 export type PitchSection = 
   | "full"           // Full pitch view
@@ -59,6 +60,7 @@ const ZOOM_LEVELS: Record<ZoomLevel, { label: string; fovRange: string; typical:
 };
 
 // Default visible areas for each section (normalized 0-1)
+// These define which part of the pitch is VISIBLE in the video
 const SECTION_VISIBLE_AREAS: Record<PitchSection, { x1: number; y1: number; x2: number; y2: number }> = {
   full: { x1: 0, y1: 0, x2: 1, y2: 1 },
   left_half: { x1: 0, y1: 0, x2: 0.5, y2: 1 },
@@ -115,7 +117,7 @@ export function PitchSectionSelector({
       </div>
 
       <p className="text-[10px] text-muted-foreground leading-tight">
-        Choose which part of the pitch is visible in your video before adjusting corners.
+        Choose which part of the pitch is visible in your video. The 3D pitch will show ONLY this section for easier alignment.
       </p>
 
       {/* Zoom Level Selection */}
@@ -426,23 +428,34 @@ export function PitchSectionSelector({
   );
 }
 
-// Helper to get initial corner positions based on section
-export function getInitialCornersForSection(section: PitchSection): {
-  topLeft: { x: number; z: number };
-  topRight: { x: number; z: number };
-  bottomLeft: { x: number; z: number };
-  bottomRight: { x: number; z: number };
-} {
+// Helper to get pitch corners that represent ONLY the visible section
+// This creates a subsection of the pitch, not a scaled version
+export function getInitialCornersForSection(section: PitchSection): PitchCorners {
+  // Full pitch dimensions
+  const fullPitch = DEFAULT_CORNERS;
+  
+  // For full pitch, return default corners
+  if (section === 'full' || section === 'custom') {
+    return { ...fullPitch };
+  }
+  
   const area = SECTION_VISIBLE_AREAS[section];
   
-  // Convert normalized (0-1) to pitch coordinates (-52.5 to 52.5, -34 to 34)
-  const pitchWidth = 105;
-  const pitchHeight = 68;
+  // Calculate the actual world coordinates for this section
+  // The pitch goes from -52.5 to 52.5 on X, and -34 to 34 on Z
+  const pitchMinX = -52.5;
+  const pitchMaxX = 52.5;
+  const pitchMinZ = -34;
+  const pitchMaxZ = 34;
   
-  const x1 = (area.x1 * pitchWidth) - (pitchWidth / 2);
-  const x2 = (area.x2 * pitchWidth) - (pitchWidth / 2);
-  const z1 = (area.y1 * pitchHeight) - (pitchHeight / 2);
-  const z2 = (area.y2 * pitchHeight) - (pitchHeight / 2);
+  const pitchWidth = pitchMaxX - pitchMinX; // 105
+  const pitchHeight = pitchMaxZ - pitchMinZ; // 68
+  
+  // Convert normalized area coordinates to world coordinates
+  const x1 = pitchMinX + area.x1 * pitchWidth;
+  const x2 = pitchMinX + area.x2 * pitchWidth;
+  const z1 = pitchMinZ + area.y1 * pitchHeight;
+  const z2 = pitchMinZ + area.y2 * pitchHeight;
 
   return {
     topLeft: { x: x1, z: z1 },
@@ -450,6 +463,11 @@ export function getInitialCornersForSection(section: PitchSection): {
     bottomLeft: { x: x1, z: z2 },
     bottomRight: { x: x2, z: z2 },
   };
+}
+
+// Get the visible area definition for filtering pitch elements
+export function getVisibleAreaForSection(section: PitchSection): { x1: number; y1: number; x2: number; y2: number } {
+  return SECTION_VISIBLE_AREAS[section];
 }
 
 export { SECTION_VISIBLE_AREAS, PITCH_SECTIONS, ZOOM_LEVELS };
