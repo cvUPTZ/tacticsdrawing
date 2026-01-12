@@ -992,6 +992,7 @@ export default function Index() {
             isCalibrating={isCalibrating}
             onUpdate={updateCalibration}
             onReset={resetCalibration}
+            onToggleCalibrating={() => setIsCalibrating(!isCalibrating)}
             onApplyPreset={applyPreset}
             // Smart Field Mapping
             isFieldMapping={isFieldMapping}
