@@ -167,6 +167,40 @@ export function generateGridHandles(corners: PitchCorners, density: number = 5):
   return handles;
 }
 
+// Reference UV coordinates for specific pitch handles to support local warping
+export const PITCH_HANDLE_UVS: Record<string, { u: number; v: number }> = {
+  // CENTER LINE & CIRCLE
+  halfway_t: { u: 0.5, v: 0 },
+  halfway_b: { u: 0.5, v: 1 },
+  center_spot: { u: 0.5, v: 0.5 },
+  center_circle_t: { u: 0.5, v: (34 - 9.15) / 68 },
+  center_circle_b: { u: 0.5, v: (34 + 9.15) / 68 },
+  center_circle_l: { u: (52.5 - 9.15) / 105, v: 0.5 },
+  center_circle_r: { u: (52.5 + 9.15) / 105, v: 0.5 },
+
+  // LEFT PENALTY & GOAL AREA
+  penalty_l_tl: { u: 16.5 / 105, v: (34 - 20.16) / 68 },
+  penalty_l_bl: { u: 16.5 / 105, v: (34 + 20.16) / 68 },
+  penalty_l_gl_t: { u: 0, v: (34 - 20.16) / 68 },
+  penalty_l_gl_b: { u: 0, v: (34 + 20.16) / 68 },
+  goal_l_tl: { u: 5.5 / 105, v: (34 - 9.16) / 68 },
+  goal_l_bl: { u: 5.5 / 105, v: (34 + 9.16) / 68 },
+  goal_l_gl_t: { u: 0, v: (34 - 9.16) / 68 },
+  goal_l_gl_b: { u: 0, v: (34 + 9.16) / 68 },
+  penalty_spot_l: { u: 11 / 105, v: 0.5 },
+
+  // RIGHT PENALTY & GOAL AREA
+  penalty_r_tr: { u: (105 - 16.5) / 105, v: (34 - 20.16) / 68 },
+  penalty_r_br: { u: (105 - 16.5) / 105, v: (34 + 20.16) / 68 },
+  penalty_r_gl_t: { u: 1, v: (34 - 20.16) / 68 },
+  penalty_r_gl_b: { u: 1, v: (34 + 20.16) / 68 },
+  goal_r_tr: { u: (105 - 5.5) / 105, v: (34 - 9.16) / 68 },
+  goal_r_br: { u: (105 - 5.5) / 105, v: (34 + 9.16) / 68 },
+  goal_r_gl_t: { u: 1, v: (34 - 9.16) / 68 },
+  goal_r_gl_b: { u: 1, v: (34 + 9.16) / 68 },
+  penalty_spot_r: { u: (105 - 11) / 105, v: 0.5 },
+};
+
 // Extended handles state including grid points
 export interface ExtendedHandles {
   gridOffsets: Record<string, { dx: number; dz: number }>;
@@ -240,17 +274,28 @@ export function createPitchFromCorners(
       let offsetZ = 0;
 
       for (const [handleId, offset] of Object.entries(gridOffsets)) {
-        // Parse grid position from handle ID
-        const match = handleId.match(/grid_(\d+)_(\d+)/);
-        if (match) {
-          const gridU = parseInt(match[1]) / 5; // Assuming density 5
-          const gridV = parseInt(match[2]) / 5;
+        let gridU = -1;
+        let gridV = -1;
 
+        // Support for new named handles
+        if (PITCH_HANDLE_UVS[handleId]) {
+          gridU = PITCH_HANDLE_UVS[handleId].u;
+          gridV = PITCH_HANDLE_UVS[handleId].v;
+        } else {
+          // Fallback to legacy grid pattern if any exist
+          const match = handleId.match(/grid_(\d+)_(\d+)/);
+          if (match) {
+            gridU = parseInt(match[1]) / 5;
+            gridV = parseInt(match[2]) / 5;
+          }
+        }
+
+        if (gridU !== -1) {
           // Calculate distance-based weight (gaussian falloff)
           const distU = u - gridU;
           const distV = v - gridV;
           const dist = Math.sqrt(distU * distU + distV * distV);
-          const sigma = 0.2; // Optimized for specific point manipulation
+          const sigma = 0.25; // Slightly larger influence for named points
           const weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
 
           if (weight > 0.01) {
