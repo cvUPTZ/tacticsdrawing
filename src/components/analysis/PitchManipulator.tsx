@@ -123,34 +123,21 @@ export function generateGridHandles(corners: PitchCorners, density: number = 5):
     }
   }
 
-  // Add midpoints between corners on each edge
-  const edgeMidpoints = [
+  // Add midpoints between corners on each edge dynamically
+  for (let i = 1; i < density; i++) {
+    const t = i / density;
     // Top edge
-    { id: "edge_t1", u: 0.25, v: 0 },
-    { id: "edge_t2", u: 0.5, v: 0 },
-    { id: "edge_t3", u: 0.75, v: 0 },
+    const pt = getGridPoint(t, 0);
+    handles.push({ id: `edge_t${i}`, x: pt.x, z: pt.z, type: "edge" });
     // Bottom edge
-    { id: "edge_b1", u: 0.25, v: 1 },
-    { id: "edge_b2", u: 0.5, v: 1 },
-    { id: "edge_b3", u: 0.75, v: 1 },
+    const pb = getGridPoint(t, 1);
+    handles.push({ id: `edge_b${i}`, x: pb.x, z: pb.z, type: "edge" });
     // Left edge
-    { id: "edge_l1", u: 0, v: 0.25 },
-    { id: "edge_l2", u: 0, v: 0.5 },
-    { id: "edge_l3", u: 0, v: 0.75 },
+    const pl = getGridPoint(0, t);
+    handles.push({ id: `edge_l${i}`, x: pl.x, z: pl.z, type: "edge" });
     // Right edge
-    { id: "edge_r1", u: 1, v: 0.25 },
-    { id: "edge_r2", u: 1, v: 0.5 },
-    { id: "edge_r3", u: 1, v: 0.75 },
-  ];
-
-  for (const ep of edgeMidpoints) {
-    const point = getGridPoint(ep.u, ep.v);
-    handles.push({
-      id: ep.id,
-      x: point.x,
-      z: point.z,
-      type: "edge",
-    });
+    const pr = getGridPoint(1, t);
+    handles.push({ id: `edge_r${i}`, x: pr.x, z: pr.z, type: "edge" });
   }
 
   return handles;
@@ -239,7 +226,7 @@ export function createPitchFromCorners(
           const distU = u - gridU;
           const distV = v - gridV;
           const dist = Math.sqrt(distU * distU + distV * distV);
-          const sigma = 0.3; // Influence radius
+          const sigma = 0.25; // Smaller radius for more local warping with higher density
           const weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
 
           if (weight > 0.01) {
@@ -557,39 +544,37 @@ export function createManipulationHandles(
     sphere.renderOrder = 999;
     handleGroup.add(sphere);
 
-    // Only add ring and pole for non-grid handles (to reduce visual clutter)
-    if (handleType !== "grid") {
-      // OUTER GLOW RING
-      const ringGeometry = new THREE.RingGeometry(size * 0.8, size * 1.1, 32);
-      const ringMaterial = new THREE.MeshBasicMaterial({
-        color: displayColor,
-        transparent: true,
-        opacity: isLocked ? 0.4 : 0.8,
-        side: THREE.DoubleSide,
-        depthTest: false,
-      });
-      const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.set(pos.x, 0.1, pos.z);
-      ring.userData = { handleId: id, isLocked, handleType };
-      ring.renderOrder = 998;
-      handleGroup.add(ring);
+    // Add ring and pole for all handles now to ensure visibility
+    // OUTER GLOW RING
+    const ringGeometry = new THREE.RingGeometry(size * 0.8, size * 1.1, 32);
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color: displayColor,
+      transparent: true,
+      opacity: isLocked ? 0.4 : 0.8,
+      side: THREE.DoubleSide,
+      depthTest: false,
+    });
+    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(pos.x, 0.1, pos.z);
+    ring.userData = { handleId: id, isLocked, handleType };
+    ring.renderOrder = 998;
+    handleGroup.add(ring);
 
-      // VERTICAL POLE
-      const poleHeight = size * 2;
-      const poleGeometry = new THREE.CylinderGeometry(size * 0.2, size * 0.2, poleHeight, 12);
-      const poleMaterial = new THREE.MeshBasicMaterial({
-        color: displayColor,
-        transparent: true,
-        opacity: isLocked ? 0.4 : 0.9,
-        depthTest: false,
-      });
-      const pole = new THREE.Mesh(poleGeometry, poleMaterial);
-      pole.position.set(pos.x, poleHeight / 2, pos.z);
-      pole.userData = { handleId: id, isLocked, handleType };
-      pole.renderOrder = 997;
-      handleGroup.add(pole);
-    }
+    // VERTICAL POLE
+    const poleHeight = size * 2;
+    const poleGeometry = new THREE.CylinderGeometry(size * 0.2, size * 0.2, poleHeight, 12);
+    const poleMaterial = new THREE.MeshBasicMaterial({
+      color: displayColor,
+      transparent: true,
+      opacity: isLocked ? 0.4 : 0.9,
+      depthTest: false,
+    });
+    const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+    pole.position.set(pos.x, poleHeight / 2, pos.z);
+    pole.userData = { handleId: id, isLocked, handleType };
+    pole.renderOrder = 997;
+    handleGroup.add(pole);
 
     // GROUND CIRCLE
     const groundGeometry = new THREE.CircleGeometry(size * 0.5, 32);
@@ -690,7 +675,7 @@ export function createManipulationHandles(
 
   // GRID HANDLES (20+) - Only shown when enabled
   if (showGridHandles) {
-    const gridHandles = generateGridHandles(corners, 5);
+    const gridHandles = generateGridHandles(corners, 6);
 
     for (const gh of gridHandles) {
       // Apply any existing offset
