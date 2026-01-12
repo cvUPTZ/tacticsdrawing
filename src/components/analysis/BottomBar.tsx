@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { Timeline } from './Timeline';
 import { PlaybackControls } from './PlaybackControls';
 import { VideoState } from '@/types/analysis';
@@ -16,7 +17,7 @@ interface BottomBarProps {
   formatTimecode: (seconds: number) => string;
 }
 
-export function BottomBar({
+export const BottomBar = forwardRef<HTMLDivElement, BottomBarProps>(({
   videoState,
   onTogglePlay,
   onSeek,
@@ -28,7 +29,7 @@ export function BottomBar({
   onToggleFullscreen,
   isFullscreen = false,
   formatTimecode,
-}: BottomBarProps) {
+}, ref) => {
   return (
     <div className="glass-panel h-16 flex items-center px-4 border-t border-border gap-4">
       {/* Playback controls */}
@@ -58,4 +59,6 @@ export function BottomBar({
       </div>
     </div>
   );
-}
+});
+
+BottomBar.displayName = 'BottomBar';
