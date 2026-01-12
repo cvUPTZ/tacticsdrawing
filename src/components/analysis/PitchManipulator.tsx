@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import * as THREE from "three";
+import { SECTION_VISIBLE_AREAS } from "./PitchSectionSelector";
 
 export interface PitchCorners {
   topLeft: { x: number; z: number };
@@ -16,7 +17,7 @@ export interface GridHandle {
   id: string;
   x: number;
   z: number;
-  type: 'corner' | 'edge' | 'center' | 'grid';
+  type: "corner" | "edge" | "center" | "grid";
 }
 
 export const DEFAULT_CORNERS: PitchCorners = {
@@ -42,40 +43,44 @@ export const DEFAULT_LOCKED_HANDLES: LockedHandles = {
 export const PITCH_SNAP_LINES = {
   // Vertical lines (x-values)
   verticals: [
-    { x: -52.5, label: 'Left touchline' },
-    { x: -36, label: 'Left penalty box edge' },
-    { x: -47, label: 'Left goal area edge' },
-    { x: 0, label: 'Halfway line' },
-    { x: 36, label: 'Right penalty box edge' },
-    { x: 47, label: 'Right goal area edge' },
-    { x: 52.5, label: 'Right touchline' },
+    { x: -52.5, label: "Left touchline" },
+    { x: -36, label: "Left penalty box edge" },
+    { x: -47, label: "Left goal area edge" },
+    { x: 0, label: "Halfway line" },
+    { x: 36, label: "Right penalty box edge" },
+    { x: 47, label: "Right goal area edge" },
+    { x: 52.5, label: "Right touchline" },
   ],
   // Horizontal lines (z-values)
   horizontals: [
-    { z: -34, label: 'Top goal line' },
-    { z: -20.16, label: 'Top penalty box' },
-    { z: -9.16, label: 'Top goal area' },
-    { z: 0, label: 'Center line' },
-    { z: 9.16, label: 'Bottom goal area' },
-    { z: 20.16, label: 'Bottom penalty box' },
-    { z: 34, label: 'Bottom goal line' },
+    { z: -34, label: "Top goal line" },
+    { z: -20.16, label: "Top penalty box" },
+    { z: -9.16, label: "Top goal area" },
+    { z: 0, label: "Center line" },
+    { z: 9.16, label: "Bottom goal area" },
+    { z: 20.16, label: "Bottom penalty box" },
+    { z: 34, label: "Bottom goal line" },
   ],
 };
 
 // Snapping threshold in world units
 export const SNAP_THRESHOLD = 3;
 
-export function snapToLine(value: number, axis: 'x' | 'z', threshold: number = SNAP_THRESHOLD): { value: number; snapped: boolean; label?: string } {
-  const lines = axis === 'x' ? PITCH_SNAP_LINES.verticals : PITCH_SNAP_LINES.horizontals;
-  const key = axis === 'x' ? 'x' : 'z';
-  
+export function snapToLine(
+  value: number,
+  axis: "x" | "z",
+  threshold: number = SNAP_THRESHOLD,
+): { value: number; snapped: boolean; label?: string } {
+  const lines = axis === "x" ? PITCH_SNAP_LINES.verticals : PITCH_SNAP_LINES.horizontals;
+  const key = axis === "x" ? "x" : "z";
+
   for (const line of lines) {
     const lineValue = (line as any)[key];
     if (Math.abs(value - lineValue) < threshold) {
       return { value: lineValue, snapped: true, label: line.label };
     }
   }
-  
+
   return { value, snapped: false };
 }
 
@@ -89,7 +94,7 @@ interface HandleInfo {
 // Generate additional grid handles for fine control
 export function generateGridHandles(corners: PitchCorners, density: number = 5): GridHandle[] {
   const handles: GridHandle[] = [];
-  
+
   // Bilinear interpolation helper
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   const getGridPoint = (u: number, v: number) => {
@@ -102,7 +107,7 @@ export function generateGridHandles(corners: PitchCorners, density: number = 5):
       z: lerp(topZ, botZ, v),
     };
   };
-  
+
   // Add grid points (skip edges and corners)
   for (let i = 1; i < density; i++) {
     for (let j = 1; j < density; j++) {
@@ -113,41 +118,41 @@ export function generateGridHandles(corners: PitchCorners, density: number = 5):
         id: `grid_${i}_${j}`,
         x: point.x,
         z: point.z,
-        type: 'grid',
+        type: "grid",
       });
     }
   }
-  
+
   // Add midpoints between corners on each edge
   const edgeMidpoints = [
     // Top edge
-    { id: 'edge_t1', u: 0.25, v: 0 },
-    { id: 'edge_t2', u: 0.5, v: 0 },
-    { id: 'edge_t3', u: 0.75, v: 0 },
+    { id: "edge_t1", u: 0.25, v: 0 },
+    { id: "edge_t2", u: 0.5, v: 0 },
+    { id: "edge_t3", u: 0.75, v: 0 },
     // Bottom edge
-    { id: 'edge_b1', u: 0.25, v: 1 },
-    { id: 'edge_b2', u: 0.5, v: 1 },
-    { id: 'edge_b3', u: 0.75, v: 1 },
+    { id: "edge_b1", u: 0.25, v: 1 },
+    { id: "edge_b2", u: 0.5, v: 1 },
+    { id: "edge_b3", u: 0.75, v: 1 },
     // Left edge
-    { id: 'edge_l1', u: 0, v: 0.25 },
-    { id: 'edge_l2', u: 0, v: 0.5 },
-    { id: 'edge_l3', u: 0, v: 0.75 },
+    { id: "edge_l1", u: 0, v: 0.25 },
+    { id: "edge_l2", u: 0, v: 0.5 },
+    { id: "edge_l3", u: 0, v: 0.75 },
     // Right edge
-    { id: 'edge_r1', u: 1, v: 0.25 },
-    { id: 'edge_r2', u: 1, v: 0.5 },
-    { id: 'edge_r3', u: 1, v: 0.75 },
+    { id: "edge_r1", u: 1, v: 0.25 },
+    { id: "edge_r2", u: 1, v: 0.5 },
+    { id: "edge_r3", u: 1, v: 0.75 },
   ];
-  
+
   for (const ep of edgeMidpoints) {
     const point = getGridPoint(ep.u, ep.v);
     handles.push({
       id: ep.id,
       x: point.x,
       z: point.z,
-      type: 'edge',
+      type: "edge",
     });
   }
-  
+
   return handles;
 }
 
@@ -161,9 +166,10 @@ export const DEFAULT_EXTENDED_HANDLES: ExtendedHandles = {
 };
 
 export function createPitchFromCorners(
-  corners: PitchCorners, 
+  corners: PitchCorners,
   extendedHandles: ExtendedHandles = DEFAULT_EXTENDED_HANDLES,
-  lensDistortion: number = 0
+  lensDistortion: number = 0,
+  selectedSection: string = "full",
 ): THREE.Group {
   const group = new THREE.Group();
 
@@ -188,21 +194,21 @@ export function createPitchFromCorners(
   // Apply lens distortion correction (barrel/pincushion)
   const applyDistortion = (x: number, z: number): { x: number; z: number } => {
     if (lensDistortion === 0) return { x, z };
-    
+
     // Normalize to center
     const cx = (corners.topLeft.x + corners.topRight.x + corners.bottomLeft.x + corners.bottomRight.x) / 4;
     const cz = (corners.topLeft.z + corners.topRight.z + corners.bottomLeft.z + corners.bottomRight.z) / 4;
-    
+
     const dx = x - cx;
     const dz = z - cz;
     const r = Math.sqrt(dx * dx + dz * dz);
     const maxR = 60; // Approximate max distance
     const normalizedR = r / maxR;
-    
+
     // Barrel distortion formula: r' = r * (1 + k * r^2)
     const k = lensDistortion * 0.01; // Scale the distortion factor
     const factor = 1 + k * normalizedR * normalizedR;
-    
+
     return {
       x: cx + dx * factor,
       z: cz + dz * factor,
@@ -214,28 +220,28 @@ export function createPitchFromCorners(
     const topPoint = lerpPoint(corners.topLeft, corners.topRight, u);
     const bottomPoint = lerpPoint(corners.bottomLeft, corners.bottomRight, u);
     let point = lerpPoint(topPoint, bottomPoint, v);
-    
+
     // Apply any grid offsets with weighted influence
     const gridOffsets = extendedHandles.gridOffsets;
     if (Object.keys(gridOffsets).length > 0) {
       let totalWeight = 0;
       let offsetX = 0;
       let offsetZ = 0;
-      
+
       for (const [handleId, offset] of Object.entries(gridOffsets)) {
         // Parse grid position from handle ID
         const match = handleId.match(/grid_(\d+)_(\d+)/);
         if (match) {
           const gridU = parseInt(match[1]) / 5; // Assuming density 5
           const gridV = parseInt(match[2]) / 5;
-          
+
           // Calculate distance-based weight (gaussian falloff)
           const distU = u - gridU;
           const distV = v - gridV;
           const dist = Math.sqrt(distU * distU + distV * distV);
           const sigma = 0.3; // Influence radius
           const weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
-          
+
           if (weight > 0.01) {
             offsetX += offset.dx * weight;
             offsetZ += offset.dz * weight;
@@ -243,13 +249,13 @@ export function createPitchFromCorners(
           }
         }
       }
-      
+
       if (totalWeight > 0) {
         point.x += offsetX / totalWeight;
         point.z += offsetZ / totalWeight;
       }
     }
-    
+
     // Apply lens distortion
     const distorted = applyDistortion(point.x, point.z);
     return new THREE.Vector3(distorted.x, 0.01, distorted.z);
@@ -258,34 +264,63 @@ export function createPitchFromCorners(
   const pitchLength = 105;
   const pitchWidth = 68;
 
+  // Bounds for clipping based on section
+  const area = (SECTION_VISIBLE_AREAS as any)[selectedSection] || SECTION_VISIBLE_AREAS.full;
+  const minX = -pitchLength / 2 + area.x1 * pitchLength;
+  const maxX = -pitchLength / 2 + area.x2 * pitchLength;
+  const minZ = -pitchWidth / 2 + area.y1 * pitchWidth;
+  const maxZ = -pitchWidth / 2 + area.y2 * pitchWidth;
+
+  const isPointVisible = (x: number, z: number) => {
+    return x >= minX - 0.1 && x <= maxX + 0.1 && z >= minZ - 0.1 && z <= maxZ + 0.1;
+  };
+
   const toUV = (x: number, z: number) => ({
     u: (x + pitchLength / 2) / pitchLength,
     v: (z + pitchWidth / 2) / pitchWidth,
   });
 
-  // PITCH OUTLINE
-  group.add(
-    createLine([
-      getPitchPoint(0, 0),
-      getPitchPoint(1, 0),
-      getPitchPoint(1, 1),
-      getPitchPoint(0, 1),
-      getPitchPoint(0, 0),
-    ]),
-  );
+  // PITCH OUTLINE - Segments clipped
+  const outlinePoints = [
+    { x: -pitchLength / 2, z: -pitchWidth / 2 },
+    { x: pitchLength / 2, z: -pitchWidth / 2 },
+    { x: pitchLength / 2, z: pitchWidth / 2 },
+    { x: -pitchLength / 2, z: pitchWidth / 2 },
+    { x: -pitchLength / 2, z: -pitchWidth / 2 },
+  ];
+
+  for (let i = 0; i < outlinePoints.length - 1; i++) {
+    const p1 = outlinePoints[i];
+    const p2 = outlinePoints[i + 1];
+
+    // Simple segment clipping - check if both points are in or at least one is in
+    // For better results we'd do line-box clipping, but let's start with checking points
+    if (isPointVisible(p1.x, p1.z) || isPointVisible(p2.x, p2.z)) {
+      const uv1 = toUV(p1.x, p1.z);
+      const uv2 = toUV(p2.x, p2.z);
+      group.add(createLine([getPitchPoint(uv1.u, uv1.v), getPitchPoint(uv2.u, uv2.v)]));
+    }
+  }
 
   // CENTER LINE
-  group.add(createLine([getPitchPoint(0.5, 0), getPitchPoint(0.5, 1)]));
+  if (isPointVisible(0, -pitchWidth / 2) || isPointVisible(0, pitchWidth / 2)) {
+    group.add(createLine([getPitchPoint(0.5, 0), getPitchPoint(0.5, 1)]));
+  }
 
   // CENTER CIRCLE
   const centerCircleRadius = 9.15;
-  const circlePoints: THREE.Vector3[] = [];
-  for (let i = 0; i <= 64; i++) {
-    const angle = (i / 64) * Math.PI * 2;
-    const uv = toUV(Math.cos(angle) * centerCircleRadius, Math.sin(angle) * centerCircleRadius);
-    circlePoints.push(getPitchPoint(uv.u, uv.v));
+  for (let i = 0; i < 64; i++) {
+    const angle1 = (i / 64) * Math.PI * 2;
+    const angle2 = ((i + 1) / 64) * Math.PI * 2;
+    const p1 = { x: Math.cos(angle1) * centerCircleRadius, z: Math.sin(angle1) * centerCircleRadius };
+    const p2 = { x: Math.cos(angle2) * centerCircleRadius, z: Math.sin(angle2) * centerCircleRadius };
+
+    if (isPointVisible(p1.x, p1.z) || isPointVisible(p2.x, p2.z)) {
+      const uv1 = toUV(p1.x, p1.z);
+      const uv2 = toUV(p2.x, p2.z);
+      group.add(createLine([getPitchPoint(uv1.u, uv1.v), getPitchPoint(uv2.u, uv2.v)]));
+    }
   }
-  group.add(createLine(circlePoints));
 
   // CENTER SPOT
   const spotPoints: THREE.Vector3[] = [];
@@ -314,7 +349,15 @@ export function createPitchFromCorners(
       { x: pitchLength / 2, z: penaltyWidth / 2 },
     ],
   ].forEach((area) => {
-    group.add(createLine(area.map((p) => getPitchPoint(toUV(p.x, p.z).u, toUV(p.x, p.z).v))));
+    for (let i = 0; i < area.length - 1; i++) {
+      const p1 = area[i];
+      const p2 = area[i + 1];
+      if (isPointVisible(p1.x, p1.z) || isPointVisible(p2.x, p2.z)) {
+        const uv1 = toUV(p1.x, p1.z);
+        const uv2 = toUV(p2.x, p2.z);
+        group.add(createLine([getPitchPoint(uv1.u, uv1.v), getPitchPoint(uv2.u, uv2.v)]));
+      }
+    }
   });
 
   // GOAL AREAS
@@ -335,7 +378,15 @@ export function createPitchFromCorners(
       { x: pitchLength / 2, z: goalAreaWidth / 2 },
     ],
   ].forEach((area) => {
-    group.add(createLine(area.map((p) => getPitchPoint(toUV(p.x, p.z).u, toUV(p.x, p.z).v))));
+    for (let i = 0; i < area.length - 1; i++) {
+      const p1 = area[i];
+      const p2 = area[i + 1];
+      if (isPointVisible(p1.x, p1.z) || isPointVisible(p2.x, p2.z)) {
+        const uv1 = toUV(p1.x, p1.z);
+        const uv2 = toUV(p2.x, p2.z);
+        group.add(createLine([getPitchPoint(uv1.u, uv1.v), getPitchPoint(uv2.u, uv2.v)]));
+      }
+    }
   });
 
   // PENALTY SPOTS & ARCS
@@ -349,23 +400,32 @@ export function createPitchFromCorners(
     { spotX: pitchLength / 2 - penaltySpotDist, angleOffset: Math.PI },
   ].forEach(({ spotX, angleOffset }) => {
     // Spot
-    const spotPts: THREE.Vector3[] = [];
-    for (let i = 0; i <= 16; i++) {
-      const angle = (i / 16) * Math.PI * 2;
-      const uv = toUV(spotX + Math.cos(angle) * 0.25, Math.sin(angle) * 0.25);
-      spotPts.push(getPitchPoint(uv.u, uv.v));
+    if (isPointVisible(spotX, 0)) {
+      const spotPts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 16; i++) {
+        const angle = (i / 16) * Math.PI * 2;
+        const uv = toUV(spotX + Math.cos(angle) * 0.25, Math.sin(angle) * 0.25);
+        spotPts.push(getPitchPoint(uv.u, uv.v));
+      }
+      group.add(createLine(spotPts));
     }
-    group.add(createLine(spotPts));
 
     // Arc
-    const arcPts: THREE.Vector3[] = [];
-    for (let i = 0; i <= 32; i++) {
-      const t = i / 32;
-      const angle = angleOffset === 0 ? -arcAngle + t * (arcAngle * 2) : Math.PI - arcAngle + t * (arcAngle * 2);
-      const uv = toUV(spotX + Math.cos(angle) * arcRadius, Math.sin(angle) * arcRadius);
-      arcPts.push(getPitchPoint(uv.u, uv.v));
+    for (let i = 0; i < 32; i++) {
+      const t1 = i / 32;
+      const t2 = (i + 1) / 32;
+      const angle1 = angleOffset === 0 ? -arcAngle + t1 * (arcAngle * 2) : Math.PI - arcAngle + t1 * (arcAngle * 2);
+      const angle2 = angleOffset === 0 ? -arcAngle + t2 * (arcAngle * 2) : Math.PI - arcAngle + t2 * (arcAngle * 2);
+
+      const p1 = { x: spotX + Math.cos(angle1) * arcRadius, z: Math.sin(angle1) * arcRadius };
+      const p2 = { x: spotX + Math.cos(angle2) * arcRadius, z: Math.sin(angle2) * arcRadius };
+
+      if (isPointVisible(p1.x, p1.z) || isPointVisible(p2.x, p2.z)) {
+        const uv1 = toUV(p1.x, p1.z);
+        const uv2 = toUV(p2.x, p2.z);
+        group.add(createLine([getPitchPoint(uv1.u, uv1.v), getPitchPoint(uv2.u, uv2.v)]));
+      }
     }
-    group.add(createLine(arcPts));
   });
 
   // CORNER ARCS
@@ -376,13 +436,18 @@ export function createPitchFromCorners(
     { x: pitchLength / 2, z: pitchWidth / 2, startAngle: Math.PI },
     { x: -pitchLength / 2, z: pitchWidth / 2, startAngle: -Math.PI / 2 },
   ].forEach((corner) => {
-    const cornerPts: THREE.Vector3[] = [];
-    for (let i = 0; i <= 16; i++) {
-      const angle = corner.startAngle + (i / 16) * (Math.PI / 2);
-      const uv = toUV(corner.x + Math.cos(angle) * cornerRadius, corner.z + Math.sin(angle) * cornerRadius);
-      cornerPts.push(getPitchPoint(uv.u, uv.v));
+    for (let i = 0; i < 16; i++) {
+      const angle1 = corner.startAngle + (i / 16) * (Math.PI / 2);
+      const angle2 = corner.startAngle + ((i + 1) / 16) * (Math.PI / 2);
+      const p1 = { x: corner.x + Math.cos(angle1) * cornerRadius, z: corner.z + Math.sin(angle1) * cornerRadius };
+      const p2 = { x: corner.x + Math.cos(angle2) * cornerRadius, z: corner.z + Math.sin(angle2) * cornerRadius };
+
+      if (isPointVisible(p1.x, p1.z) || isPointVisible(p2.x, p2.z)) {
+        const uv1 = toUV(p1.x, p1.z);
+        const uv2 = toUV(p2.x, p2.z);
+        group.add(createLine([getPitchPoint(uv1.u, uv1.v), getPitchPoint(uv2.u, uv2.v)]));
+      }
     }
-    group.add(createLine(cornerPts));
   });
 
   // GOALS
@@ -391,6 +456,8 @@ export function createPitchFromCorners(
   const goalDepth = 1.5;
 
   [-pitchLength / 2, pitchLength / 2].forEach((xPos, idx) => {
+    if (!isPointVisible(xPos, 0)) return;
+
     const dir = idx === 0 ? -1 : 1;
     const topPostUV = toUV(xPos, -goalWidth / 2);
     const bottomPostUV = toUV(xPos, goalWidth / 2);
@@ -433,11 +500,11 @@ export function createPitchFromCorners(
 }
 
 export function createManipulationHandles(
-  corners: PitchCorners, 
+  corners: PitchCorners,
   activeHandle: string | null,
   lockedHandles: LockedHandles = DEFAULT_LOCKED_HANDLES,
   showGridHandles: boolean = false,
-  extendedHandles: ExtendedHandles = DEFAULT_EXTENDED_HANDLES
+  extendedHandles: ExtendedHandles = DEFAULT_EXTENDED_HANDLES,
 ): THREE.Group {
   const group = new THREE.Group();
 
@@ -455,14 +522,25 @@ export function createManipulationHandles(
   const gridColor = 0x88ff88;
   const lockedColor = 0x666666;
 
-  const createHandle = (id: string, pos: { x: number; z: number }, handleType: 'corner' | 'edge' | 'center' | 'grid', baseColor: number, isLocked: boolean = false) => {
+  const createHandle = (
+    id: string,
+    pos: { x: number; z: number },
+    handleType: "corner" | "edge" | "center" | "grid",
+    baseColor: number,
+    isLocked: boolean = false,
+  ) => {
     const isActive = activeHandle === id;
-    const size = handleType === 'corner' ? cornerHandleSize : 
-                 handleType === 'center' ? centerHandleSize :
-                 handleType === 'grid' ? gridHandleSize : edgeHandleSize;
+    const size =
+      handleType === "corner"
+        ? cornerHandleSize
+        : handleType === "center"
+          ? centerHandleSize
+          : handleType === "grid"
+            ? gridHandleSize
+            : edgeHandleSize;
     const handleGroup = new THREE.Group();
-    
-    const displayColor = isLocked ? lockedColor : (isActive ? activeColor : baseColor);
+
+    const displayColor = isLocked ? lockedColor : isActive ? activeColor : baseColor;
     const displayOpacity = isLocked ? 0.5 : 1.0;
 
     // MAIN SPHERE
@@ -480,7 +558,7 @@ export function createManipulationHandles(
     handleGroup.add(sphere);
 
     // Only add ring and pole for non-grid handles (to reduce visual clutter)
-    if (handleType !== 'grid') {
+    if (handleType !== "grid") {
       // OUTER GLOW RING
       const ringGeometry = new THREE.RingGeometry(size * 0.8, size * 1.1, 32);
       const ringMaterial = new THREE.MeshBasicMaterial({
@@ -530,7 +608,7 @@ export function createManipulationHandles(
     handleGroup.add(ground);
 
     // EDGE OUTLINE for corners (or lock indicator)
-    if (handleType === 'corner' || isLocked) {
+    if (handleType === "corner" || isLocked) {
       const edgesGeo = new THREE.EdgesGeometry(sphereGeometry);
       const edgesMat = new THREE.LineBasicMaterial({
         color: isLocked ? 0xff4444 : 0xffffff,
@@ -542,7 +620,7 @@ export function createManipulationHandles(
       edges.renderOrder = 1000;
       handleGroup.add(edges);
     }
-    
+
     // Lock icon indicator (X pattern for locked handles)
     if (isLocked) {
       const xSize = size * 0.4;
@@ -575,7 +653,7 @@ export function createManipulationHandles(
     { id: "bottomRight", pos: corners.bottomRight },
   ].forEach(({ id, pos }) => {
     const isLocked = lockedHandles[id] || false;
-    group.add(createHandle(id, pos, 'corner', cornerColor, isLocked));
+    group.add(createHandle(id, pos, "corner", cornerColor, isLocked));
   });
 
   // EDGE HANDLES (4)
@@ -601,19 +679,19 @@ export function createManipulationHandles(
     },
   ].forEach(({ id, pos }) => {
     const isLocked = lockedHandles[id] || false;
-    group.add(createHandle(id, pos, 'edge', edgeColor, isLocked));
+    group.add(createHandle(id, pos, "edge", edgeColor, isLocked));
   });
 
   // CENTER HANDLE (1)
   const centerX = (corners.topLeft.x + corners.topRight.x + corners.bottomLeft.x + corners.bottomRight.x) / 4;
   const centerZ = (corners.topLeft.z + corners.topRight.z + corners.bottomLeft.z + corners.bottomRight.z) / 4;
   const isCenterLocked = lockedHandles.center || false;
-  group.add(createHandle("center", { x: centerX, z: centerZ }, 'center', centerColor, isCenterLocked));
+  group.add(createHandle("center", { x: centerX, z: centerZ }, "center", centerColor, isCenterLocked));
 
   // GRID HANDLES (20+) - Only shown when enabled
   if (showGridHandles) {
     const gridHandles = generateGridHandles(corners, 5);
-    
+
     for (const gh of gridHandles) {
       // Apply any existing offset
       const offset = extendedHandles.gridOffsets[gh.id] || { dx: 0, dz: 0 };
@@ -625,7 +703,9 @@ export function createManipulationHandles(
   console.log("✅ Created manipulation handles:", {
     totalHandles: group.children.length,
     showGridHandles,
-    lockedHandles: Object.entries(lockedHandles).filter(([_, v]) => v).map(([k]) => k),
+    lockedHandles: Object.entries(lockedHandles)
+      .filter(([_, v]) => v)
+      .map(([k]) => k),
   });
 
   return group;
