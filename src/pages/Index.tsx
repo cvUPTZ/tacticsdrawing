@@ -248,7 +248,7 @@ export default function Index() {
 
     // 2. Add from legacy cornerPoints (only if not already added by ID)
     cornerPoints.forEach((p) => {
-      let refId = p.id;
+      let refId: string = p.id;
       if (p.id === "topLeft") refId = "corner_tl";
       if (p.id === "topRight") refId = "corner_tr";
       if (p.id === "bottomLeft") refId = "corner_bl";
