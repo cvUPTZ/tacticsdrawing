@@ -5,17 +5,8 @@ import { HeatmapType, HeatmapOverlay, getHeatmapColor } from "./HeatmapOverlay";
 import { createSOTAPitch, PITCH_REFERENCE_POINTS } from "./SOTAPitch";
 import { CalibrationPoint } from "./PointCalibration";
 import { PitchTransform, DEFAULT_TRANSFORM } from "./PitchTransformControls";
-import {
-  PitchCorners,
-  DEFAULT_CORNERS,
-  createPitchFromCorners,
-  createManipulationHandles,
-  LockedHandles,
-  DEFAULT_LOCKED_HANDLES,
-  ExtendedHandles,
-  DEFAULT_EXTENDED_HANDLES,
-  snapToLine,
-} from "./PitchManipulator";
+import { PitchCorners, DEFAULT_CORNERS, createPitchFromCorners, createManipulationHandles, LockedHandles, DEFAULT_LOCKED_HANDLES, ExtendedHandles, DEFAULT_EXTENDED_HANDLES, snapToLine } from "./PitchManipulator";
+import { ProjectiveTextureShader } from "@/utils/ProjectiveTextureShader";
 
 interface PitchScale {
   width: number;
@@ -55,6 +46,9 @@ interface ThreeCanvasProps {
   pitchControlPoints?: any[];
   activeControlPointId?: string | null;
   selectedPitchSection?: string;
+  // Tactical Transformation
+  videoElement?: HTMLVideoElement | null;
+  showTacticalView?: boolean;
 }
 
 interface LabelData {
@@ -118,10 +112,12 @@ export function ThreeCanvas({
   onExtendedHandlesChange,
   enableSnapping = true,
   lensDistortion = 0,
-  selectedPitchSection = "full",
+  selectedPitchSection = 'full',
   isDirectManipulating = false,
   pitchControlPoints = [],
   activeControlPointId = null,
+  videoElement = null,
+  showTacticalView = false,
 }: ThreeCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -137,7 +133,11 @@ export function ThreeCanvas({
   const pitchPlaneRef = useRef<THREE.Mesh | null>(null);
   const animationTimeRef = useRef(0);
   const [labels, setLabels] = useState<LabelData[]>([]);
-  const updateLabelPositionsRef = useRef<() => void>(() => {});
+  const updateLabelPositionsRef = useRef<() => void>(() => { });
+
+  // Tactical Transformation Refs
+  const videoTextureRef = useRef<THREE.VideoTexture | null>(null);
+  const projectiveMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
 
   // Pitch manipulation state
   const [activeHandle, setActiveHandle] = useState<string | null>(null);
@@ -145,6 +145,10 @@ export function ThreeCanvas({
   const isDraggingHandleRef = useRef(false);
   const dragStartRef = useRef<{ x: number; z: number } | null>(null);
   const cornersStartRef = useRef<PitchCorners | null>(null);
+
+  // Tactical Camera Refs
+  const tacticalTargetRef = useRef({ theta: 0, phi: Math.PI / 2, radius: 100, x: 0, z: 0 });
+  const isTransitioningCameraRef = useRef(false);
 
   // Mouse control state refs
   const isDraggingRef = useRef(false);
@@ -218,13 +222,18 @@ export function ThreeCanvas({
 
     // Invisible pitch plane for raycasting
     const pitchGeometry = new THREE.PlaneGeometry(200, 150);
-    const pitchMaterial = new THREE.MeshBasicMaterial({
-      color: 0x2d8a3e,
+    // Video Projection Plane
+    const projectiveMaterial = new THREE.ShaderMaterial({
+      uniforms: THREE.UniformsUtils.clone(ProjectiveTextureShader.uniforms),
+      vertexShader: ProjectiveTextureShader.vertexShader,
+      fragmentShader: ProjectiveTextureShader.fragmentShader,
       transparent: true,
-      opacity: 0,
       side: THREE.DoubleSide,
+      depthWrite: false,
     });
-    const pitchPlane = new THREE.Mesh(pitchGeometry, pitchMaterial);
+    projectiveMaterialRef.current = projectiveMaterial;
+
+    const pitchPlane = new THREE.Mesh(pitchGeometry, projectiveMaterial);
     pitchPlane.rotation.x = -Math.PI / 2;
     pitchPlane.position.y = 0;
     scene.add(pitchPlane);
@@ -362,6 +371,42 @@ export function ThreeCanvas({
 
       renderer.render(scene, camera);
       updateLabelPositionsRef.current();
+
+      // Update shader projection matrix to match the current CALIBRATION camera
+      // (Even if the actual view camera moves, the projection matrix uses the fixed broadcast calibration)
+      if (projectiveMaterialRef.current) {
+        // Create a temporary camera to represent the broadcast view for projection
+        const broadcastCamera = new THREE.PerspectiveCamera(calibration.cameraFov, renderer.domElement.width / renderer.domElement.height, 0.1, 1000);
+        broadcastCamera.position.set(calibration.cameraX, calibration.cameraY, calibration.cameraZ);
+        broadcastCamera.rotation.set(calibration.cameraRotationX, calibration.cameraRotationY, calibration.cameraRotationZ);
+        broadcastCamera.updateMatrixWorld();
+        broadcastCamera.updateProjectionMatrix();
+
+        const projMatrix = new THREE.Matrix4();
+        projMatrix.multiplyMatrices(broadcastCamera.projectionMatrix, broadcastCamera.matrixWorldInverse);
+        projectiveMaterialRef.current.uniforms.projectionMatrix4.value.copy(projMatrix);
+      }
+
+      // Smooth camera transition for Tactical View
+      if (showTacticalView) {
+        // Target: Top Down
+        const targetX = 0;
+        const targetY = 120; // High enough to see full pitch
+        const targetZ = 0.1; // Slight offset to maintain orientation
+
+        camera.position.lerp(new THREE.Vector3(targetX, targetY, targetZ), 0.05);
+        const lookTarget = new THREE.Vector3(0, 0, 0);
+        const currentLook = new THREE.Vector3(0, 0, 0);
+        camera.getWorldDirection(currentLook);
+        camera.lookAt(lookTarget); // This is abrupt, but works for now.
+      } else if (!isDraggingRef.current && !isPitchManipulating) {
+        // Return to Calibration camera
+        const targetPos = new THREE.Vector3(calibration.cameraX, calibration.cameraY, calibration.cameraZ);
+        if (camera.position.distanceTo(targetPos) > 0.1) {
+          camera.position.lerp(targetPos, 0.05);
+          // Gently lerp rotation/fov too if needed, but calibration effect already sets them
+        }
+      }
     };
     animate();
 
@@ -388,6 +433,22 @@ export function ThreeCanvas({
     };
   }, []);
 
+  // Update video texture when video element changes
+  useEffect(() => {
+    if (videoElement) {
+      const texture = new THREE.VideoTexture(videoElement);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.format = THREE.RGBAFormat;
+      videoTextureRef.current = texture;
+
+      if (projectiveMaterialRef.current) {
+        projectiveMaterialRef.current.uniforms.tVideo.value = texture;
+        projectiveMaterialRef.current.uniforms.useTexture.value = 1.0;
+      }
+    }
+  }, [videoElement]);
+
   // Update pitch when scale/corners change
   useEffect(() => {
     const pitchGroup = pitchGroupRef.current;
@@ -406,7 +467,7 @@ export function ThreeCanvas({
       const cornerPitch = createPitchFromCorners(pitchCorners, extendedHandles, lensDistortion, selectedPitchSection);
       pitchGroup.add(cornerPitch);
     } else if (useSOTAPitch) {
-      const sotaPitch = createSOTAPitch(pitchScale);
+      const sotaPitch = createSOTAPitch(pitchScale, selectedPitchSection);
       pitchGroup.add(sotaPitch);
     } else {
       // Basic pitch fallback
@@ -458,16 +519,7 @@ export function ThreeCanvas({
       pitchGroup.rotation.set(0, 0, 0);
       pitchGroup.scale.set(1, 1, 1);
     }
-  }, [
-    pitchScale,
-    useSOTAPitch,
-    pitchTransform,
-    isPitchManipulating,
-    pitchCorners,
-    extendedHandles,
-    lensDistortion,
-    selectedPitchSection,
-  ]);
+  }, [pitchScale, useSOTAPitch, pitchTransform, isPitchManipulating, pitchCorners, extendedHandles, lensDistortion, selectedPitchSection]);
 
   // Render manipulation handles when in manipulation mode
   useEffect(() => {
@@ -487,15 +539,9 @@ export function ThreeCanvas({
 
     // We read activeHandle from ref inside createManipulationHandles or pass it
     // The dependency array includes pitchCorners and activeHandle, so this re-renders handles correctly.
-    const handles = createManipulationHandles(
-      pitchCorners,
-      activeHandle,
-      lockedHandles,
-      showGridHandles,
-      extendedHandles,
-    );
+    const handles = createManipulationHandles(pitchCorners, activeHandle, lockedHandles, showGridHandles, extendedHandles, selectedPitchSection);
     handlesGroup.add(handles);
-  }, [isPitchManipulating, pitchCorners, activeHandle, lockedHandles, showGridHandles, extendedHandles]);
+  }, [isPitchManipulating, pitchCorners, activeHandle, lockedHandles, showGridHandles, extendedHandles, selectedPitchSection]);
 
   // FIXED MOUSE EVENT HANDLING FOR PITCH MANIPULATION
   useEffect(() => {
@@ -647,29 +693,15 @@ export function ThreeCanvas({
             break;
           case "center":
             if (!lockedHandlesRef.current.center) {
-              if (!lockedHandlesRef.current.topLeft)
-                newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
-              if (!lockedHandlesRef.current.topRight)
-                newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
-              if (!lockedHandlesRef.current.bottomLeft)
-                newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
-              if (!lockedHandlesRef.current.bottomRight)
-                newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
+              if (!lockedHandlesRef.current.topLeft) newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
+              if (!lockedHandlesRef.current.topRight) newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
+              if (!lockedHandlesRef.current.bottomLeft) newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
+              if (!lockedHandlesRef.current.bottomRight) newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
             }
             break;
           default:
             // Handle specific pitch handles (grid handles and extra points)
-            const mainHandles = [
-              "topLeft",
-              "topRight",
-              "bottomLeft",
-              "bottomRight",
-              "top",
-              "bottom",
-              "left",
-              "right",
-              "center",
-            ];
+            const mainHandles = ["topLeft", "topRight", "bottomLeft", "bottomRight", "top", "bottom", "left", "right", "center"];
             if (!mainHandles.includes(activeHandleRef.current)) {
               const currentExtended = { ...extendedHandlesRef.current };
               const currentOffsets = { ...currentExtended.gridOffsets };
@@ -693,10 +725,10 @@ export function ThreeCanvas({
 
         // Apply snapping if enabled
         if (enableSnappingRef.current) {
-          const corners = ["topLeft", "topRight", "bottomLeft", "bottomRight"] as const;
+          const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'] as const;
           for (const corner of corners) {
-            const snapX = snapToLine(newCorners[corner].x, "x");
-            const snapZ = snapToLine(newCorners[corner].z, "z");
+            const snapX = snapToLine(newCorners[corner].x, 'x');
+            const snapZ = snapToLine(newCorners[corner].z, 'z');
             if (snapX.snapped) newCorners[corner].x = snapX.value;
             if (snapZ.snapped) newCorners[corner].z = snapZ.value;
           }
@@ -2154,7 +2186,7 @@ export function ThreeCanvas({
   return (
     <div
       ref={containerRef}
-      className={`three-layer ${isInteractive || isPitchManipulating ? "interactive" : ""}`}
+      className={`three-layer ${(isInteractive || isPitchManipulating) ? "interactive" : ""}`}
       onClick={handleClick}
     >
       {/* HTML Labels for player names */}
