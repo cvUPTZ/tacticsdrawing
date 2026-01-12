@@ -1001,7 +1001,7 @@ export default function Index() {
             onSetActiveFieldPoint={setActiveFieldPointId}
             onUpdateFieldPoint={handleUpdateFieldPoint}
             onResetFieldPoints={handleResetFieldPoints}
-            onToggleVisibility={handleToggleFieldPointVisibility}
+            onToggleFieldPointVisibility={handleToggleFieldPointVisibility}
             pitchScale={pitchScale}
             onPitchScaleChange={setPitchScale}
             isCornerCalibrating={isCornerCalibrating}
