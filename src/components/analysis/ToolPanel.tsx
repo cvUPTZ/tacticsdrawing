@@ -1,8 +1,8 @@
-import { 
-  MousePointer2, 
-  User, 
-  ArrowRight, 
-  Circle, 
+import {
+  MousePointer2,
+  User,
+  ArrowRight,
+  Circle,
   Lightbulb,
   Move,
   Trash2,
@@ -51,6 +51,8 @@ interface ToolPanelProps {
   onExport: () => void;
   onSave: () => void;
   hasVideo: boolean;
+  showTacticalView: boolean;
+  onToggleTacticalView: (show: boolean) => void;
 }
 
 // Base tools
@@ -183,14 +185,16 @@ export function ToolPanel({
   onExport,
   onSave,
   hasVideo,
+  showTacticalView,
+  onToggleTacticalView,
 }: ToolPanelProps) {
   return (
     <div className="glass-panel rounded-lg p-3 flex flex-col gap-2">
       {/* Base Tools */}
-      <ToolGroup 
-        title="Basic Tools" 
-        tools={BASE_TOOLS} 
-        currentTool={currentTool} 
+      <ToolGroup
+        title="Basic Tools"
+        tools={BASE_TOOLS}
+        currentTool={currentTool}
         onToolChange={onToolChange}
         hasVideo={hasVideo}
         defaultOpen={true}
@@ -198,47 +202,66 @@ export function ToolPanel({
 
       <Separator className="bg-border/50" />
 
+      {/* View Controls */}
+      <div className="space-y-1">
+        <span className="hud-text text-[10px] text-muted-foreground">View</span>
+        <div className="flex items-center justify-between py-1">
+          <div className="flex items-center gap-2">
+            <Spline className="h-3 w-3 text-primary" />
+            <span className="text-[10px] font-medium">Tactical Perspective</span>
+          </div>
+          <Switch
+            checked={showTacticalView}
+            onCheckedChange={onToggleTacticalView}
+            disabled={!hasVideo}
+            className="scale-75"
+          />
+        </div>
+      </div>
+
+      <Separator className="bg-border/50" />
+
       {/* Drawing Tools */}
-      <ToolGroup 
-        title="Drawing" 
-        tools={DRAWING_TOOLS} 
-        currentTool={currentTool} 
+      <ToolGroup
+        title="Drawing"
+        tools={DRAWING_TOOLS}
+        currentTool={currentTool}
         onToolChange={onToolChange}
         hasVideo={hasVideo}
       />
 
       {/* Passing Pack */}
-      <ToolGroup 
-        title="Passing Arrows" 
-        tools={PASSING_TOOLS} 
-        currentTool={currentTool} 
+      <ToolGroup
+        title="Passing Arrows"
+        tools={PASSING_TOOLS}
+        currentTool={currentTool}
         onToolChange={onToolChange}
         hasVideo={hasVideo}
       />
 
       {/* Defensive Pack */}
-      <ToolGroup 
-        title="Defensive" 
-        tools={DEFENSIVE_TOOLS} 
-        currentTool={currentTool} 
+      <ToolGroup
+        title="Defensive"
+        tools={DEFENSIVE_TOOLS}
+        currentTool={currentTool}
         onToolChange={onToolChange}
         hasVideo={hasVideo}
       />
 
       {/* Set-piece Pack */}
-      <ToolGroup 
-        title="Set-Pieces" 
-        tools={SETPIECE_TOOLS} 
-        currentTool={currentTool} 
+      <ToolGroup
+        title="Set-Pieces"
+        tools={SETPIECE_TOOLS}
+        currentTool={currentTool}
         onToolChange={onToolChange}
         hasVideo={hasVideo}
       />
 
       {/* Training Pack */}
-      <ToolGroup 
-        title="Training" 
-        tools={TRAINING_TOOLS} 
-        currentTool={currentTool} 
+      <ToolGroup
+        title="Training"
+        tools={TRAINING_TOOLS}
+        currentTool={currentTool}
         onToolChange={onToolChange}
         hasVideo={hasVideo}
       />
@@ -298,11 +321,11 @@ export function ToolPanel({
               onClick={() => onColorChange(color)}
               className={cn(
                 "w-4 h-4 rounded-full border-2 transition-all hover:scale-110",
-                currentColor === color 
-                  ? "border-foreground scale-110" 
+                currentColor === color
+                  ? "border-foreground scale-110"
                   : "border-transparent hover:border-foreground/50"
               )}
-              style={{ 
+              style={{
                 backgroundColor: color,
                 boxShadow: currentColor === color ? `0 0 8px ${color}` : undefined,
               }}
@@ -345,8 +368,8 @@ export function ToolPanel({
         <span className="hud-text text-[10px] text-muted-foreground">Line Style</span>
         <div className="flex items-center justify-between py-0.5">
           <Label htmlFor="dashed-mode" className="text-[10px] flex items-center gap-2">
-            <span className="w-6 h-0.5 bg-current" style={{ 
-              backgroundImage: isDashed ? 'repeating-linear-gradient(90deg, currentColor 0, currentColor 3px, transparent 3px, transparent 6px)' : undefined 
+            <span className="w-6 h-0.5 bg-current" style={{
+              backgroundImage: isDashed ? 'repeating-linear-gradient(90deg, currentColor 0, currentColor 3px, transparent 3px, transparent 6px)' : undefined
             }} />
             {isDashed ? 'Dashed' : 'Solid'}
           </Label>
