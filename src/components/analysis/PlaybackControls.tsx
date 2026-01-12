@@ -1,9 +1,9 @@
-import { 
-  Play, 
-  Pause, 
-  SkipBack, 
-  SkipForward, 
-  Volume2, 
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
   VolumeX,
   Volume1,
   ChevronLeft,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { VideoState } from '@/types/analysis';
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 
 interface PlaybackControlsProps {
   videoState: VideoState;
@@ -37,7 +37,7 @@ interface PlaybackControlsProps {
 
 const PLAYBACK_RATES = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4];
 
-export function PlaybackControls({
+export const PlaybackControls = forwardRef<HTMLDivElement, PlaybackControlsProps>(({
   videoState,
   onTogglePlay,
   onStepFrame,
@@ -47,13 +47,13 @@ export function PlaybackControls({
   onToggleMute,
   onToggleFullscreen,
   isFullscreen = false,
-}: PlaybackControlsProps) {
+}, ref) => {
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
-  const VolumeIcon = videoState.isMuted || videoState.volume === 0 
-    ? VolumeX 
-    : videoState.volume < 0.5 
-      ? Volume1 
+  const VolumeIcon = videoState.isMuted || videoState.volume === 0
+    ? VolumeX
+    : videoState.volume < 0.5
+      ? Volume1
       : Volume2;
 
   return (
@@ -135,7 +135,7 @@ export function PlaybackControls({
       </Select>
 
       {/* Volume with slider */}
-      <div 
+      <div
         className="relative flex items-center"
         onMouseEnter={() => setShowVolumeSlider(true)}
         onMouseLeave={() => setShowVolumeSlider(false)}
@@ -149,7 +149,7 @@ export function PlaybackControls({
         >
           <VolumeIcon className="h-4 w-4" />
         </Button>
-        
+
         {showVolumeSlider && (
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 glass-panel rounded-lg">
             <div className="h-24 flex items-center justify-center">
@@ -188,4 +188,6 @@ export function PlaybackControls({
       )}
     </div>
   );
-}
+});
+
+PlaybackControls.displayName = 'PlaybackControls';
