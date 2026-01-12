@@ -54,6 +54,7 @@ interface ThreeCanvasProps {
   isDirectManipulating?: boolean;
   pitchControlPoints?: any[];
   activeControlPointId?: string | null;
+  selectedPitchSection?: string;
 }
 
 interface LabelData {
@@ -117,6 +118,7 @@ export function ThreeCanvas({
   onExtendedHandlesChange,
   enableSnapping = true,
   lensDistortion = 0,
+  selectedPitchSection = "full",
   isDirectManipulating = false,
   pitchControlPoints = [],
   activeControlPointId = null,
@@ -384,7 +386,7 @@ export function ThreeCanvas({
 
     // Use corner-based pitch when manipulating, otherwise use SOTA
     if (isPitchManipulating) {
-      const cornerPitch = createPitchFromCorners(pitchCorners, extendedHandles, lensDistortion);
+      const cornerPitch = createPitchFromCorners(pitchCorners, extendedHandles, lensDistortion, selectedPitchSection);
       pitchGroup.add(cornerPitch);
     } else if (useSOTAPitch) {
       const sotaPitch = createSOTAPitch(pitchScale);
@@ -439,7 +441,16 @@ export function ThreeCanvas({
       pitchGroup.rotation.set(0, 0, 0);
       pitchGroup.scale.set(1, 1, 1);
     }
-  }, [pitchScale, useSOTAPitch, pitchTransform, isPitchManipulating, pitchCorners, extendedHandles, lensDistortion]);
+  }, [
+    pitchScale,
+    useSOTAPitch,
+    pitchTransform,
+    isPitchManipulating,
+    pitchCorners,
+    extendedHandles,
+    lensDistortion,
+    selectedPitchSection,
+  ]);
 
   // Render manipulation handles when in manipulation mode
   useEffect(() => {
@@ -566,38 +577,68 @@ export function ThreeCanvas({
 
         switch (activeHandleRef.current) {
           case "topLeft":
-            newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
+            if (!lockedHandles.topLeft) {
+              newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
+            }
             break;
           case "topRight":
-            newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
+            if (!lockedHandles.topRight) {
+              newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
+            }
             break;
           case "bottomLeft":
-            newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
+            if (!lockedHandles.bottomLeft) {
+              newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
+            }
             break;
           case "bottomRight":
-            newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
+            if (!lockedHandles.bottomRight) {
+              newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
+            }
             break;
           case "top":
-            newCorners.topLeft = { x: start.topLeft.x, z: start.topLeft.z + deltaZ };
-            newCorners.topRight = { x: start.topRight.x, z: start.topRight.z + deltaZ };
+            if (!lockedHandles.top && !lockedHandles.topLeft) {
+              newCorners.topLeft = { x: start.topLeft.x, z: start.topLeft.z + deltaZ };
+            }
+            if (!lockedHandles.top && !lockedHandles.topRight) {
+              newCorners.topRight = { x: start.topRight.x, z: start.topRight.z + deltaZ };
+            }
             break;
           case "bottom":
-            newCorners.bottomLeft = { x: start.bottomLeft.x, z: start.bottomLeft.z + deltaZ };
-            newCorners.bottomRight = { x: start.bottomRight.x, z: start.bottomRight.z + deltaZ };
+            if (!lockedHandles.bottom && !lockedHandles.bottomLeft) {
+              newCorners.bottomLeft = { x: start.bottomLeft.x, z: start.bottomLeft.z + deltaZ };
+            }
+            if (!lockedHandles.bottom && !lockedHandles.bottomRight) {
+              newCorners.bottomRight = { x: start.bottomRight.x, z: start.bottomRight.z + deltaZ };
+            }
             break;
           case "left":
-            newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z };
-            newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z };
+            if (!lockedHandles.left && !lockedHandles.topLeft) {
+              newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z };
+            }
+            if (!lockedHandles.left && !lockedHandles.bottomLeft) {
+              newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z };
+            }
             break;
           case "right":
-            newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z };
-            newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z };
+            if (!lockedHandles.right && !lockedHandles.topRight) {
+              newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z };
+            }
+            if (!lockedHandles.right && !lockedHandles.bottomRight) {
+              newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z };
+            }
             break;
           case "center":
-            newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
-            newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
-            newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
-            newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
+            if (!lockedHandles.center) {
+              if (!lockedHandles.topLeft)
+                newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
+              if (!lockedHandles.topRight)
+                newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
+              if (!lockedHandles.bottomLeft)
+                newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
+              if (!lockedHandles.bottomRight)
+                newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
+            }
             break;
           default:
             // Handle grid and other custom handles
