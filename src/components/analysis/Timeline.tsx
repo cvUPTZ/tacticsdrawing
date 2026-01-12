@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, forwardRef } from 'react';
 import { Slider } from '@/components/ui/slider';
 
 interface TimelineProps {
@@ -8,7 +8,7 @@ interface TimelineProps {
   formatTimecode: (seconds: number) => string;
 }
 
-export function Timeline({ currentTime, duration, onSeek, formatTimecode }: TimelineProps) {
+export const Timeline = forwardRef<HTMLDivElement, TimelineProps>(({ currentTime, duration, onSeek, formatTimecode }, ref) => {
   const [isDragging, setIsDragging] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -36,17 +36,17 @@ export function Timeline({ currentTime, duration, onSeek, formatTimecode }: Time
     <div className="relative flex-1 px-4">
       {/* Hover timecode tooltip */}
       {hoverTime !== null && (
-        <div 
+        <div
           className="absolute -top-8 transform -translate-x-1/2 glass-panel px-2 py-1 rounded text-xs font-mono text-primary pointer-events-none z-10"
-          style={{ 
+          style={{
             left: `${(hoverTime / duration) * 100}%`,
           }}
         >
           {formatTimecode(hoverTime)}
         </div>
       )}
-      
-      <div 
+
+      <div
         ref={trackRef}
         className="relative"
         onMouseMove={handleMouseMove}
@@ -74,4 +74,6 @@ export function Timeline({ currentTime, duration, onSeek, formatTimecode }: Time
       </div>
     </div>
   );
-}
+});
+
+Timeline.displayName = 'Timeline';
