@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { CalibrationState } from "@/types/analysis";
 import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, Grid3X3, Wand2, Save, Trash2, Flame } from "lucide-react";
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { GridOverlayType } from "./ThreeCanvas";
 import { HeatmapType } from "./HeatmapOverlay";
 import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
@@ -104,7 +104,7 @@ const PRESETS = [
   { id: "behindGoal" as const, label: "Behind Goal" },
 ];
 
-export function CalibrationPanel({
+export const CalibrationPanel = forwardRef<HTMLDivElement, CalibrationPanelProps>(({
   calibration,
   isCalibrating,
   onUpdate,
@@ -125,7 +125,7 @@ export function CalibrationPanel({
   onSavePreset,
   onLoadPreset,
   onDeletePreset,
-  heatmapType = "none",
+  heatmapType = "none" as HeatmapType,
   onHeatmapChange,
   isDirectManipulating = false,
   onToggleDirectManipulating,
@@ -151,8 +151,8 @@ export function CalibrationPanel({
   onPitchCornersReset,
   lockedHandles,
   onLockedHandlesChange,
-  selectedPitchSection = "full",
-  selectedZoomLevel = "wide",
+  selectedPitchSection = 'full' as PitchSection,
+  selectedZoomLevel = 'wide' as ZoomLevel,
   onPitchSectionChange,
   onZoomLevelChange,
   pitchSectionConfirmed = false,
@@ -165,7 +165,7 @@ export function CalibrationPanel({
   onEnableSnappingChange,
   lensDistortion,
   onLensDistortionChange,
-}: CalibrationPanelProps) {
+}, ref) => {
   const [activeTab, setActiveTab] = useState<"position" | "rotation" | "pitch">("position");
   const [newPresetName, setNewPresetName] = useState("");
 
@@ -254,33 +254,30 @@ export function CalibrationPanel({
       <div className="flex gap-1 p-1 bg-muted/30 rounded-md">
         <button
           onClick={() => setActiveTab("position")}
-          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[10px] font-medium transition-colors ${
-            activeTab === "position"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[10px] font-medium transition-colors ${activeTab === "position"
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+            }`}
         >
           <Move3D className="h-3 w-3" />
           Position
         </button>
         <button
           onClick={() => setActiveTab("rotation")}
-          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[10px] font-medium transition-colors ${
-            activeTab === "rotation"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[10px] font-medium transition-colors ${activeTab === "rotation"
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+            }`}
         >
           <RotateCcw className="h-3 w-3" />
           Rotation
         </button>
         <button
           onClick={() => setActiveTab("pitch")}
-          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[10px] font-medium transition-colors ${
-            activeTab === "pitch"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[10px] font-medium transition-colors ${activeTab === "pitch"
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+            }`}
         >
           <Maximize2 className="h-3 w-3" />
           Pitch
@@ -452,10 +449,10 @@ export function CalibrationPanel({
               onToggle={onToggleFieldMapping}
               fieldPoints={fieldPoints}
               activePointId={activeFieldPointId}
-              onSetActivePoint={onSetActiveFieldPoint || (() => {})}
-              onUpdatePoint={onUpdateFieldPoint || (() => {})}
-              onResetPoints={onResetFieldPoints || (() => {})}
-              onToggleVisibility={onToggleFieldPointVisibility || (() => {})}
+              onSetActivePoint={onSetActiveFieldPoint || (() => { })}
+              onUpdatePoint={onUpdateFieldPoint || (() => { })}
+              onResetPoints={onResetFieldPoints || (() => { })}
+              onToggleVisibility={onToggleFieldPointVisibility || (() => { })}
             />
           )}
 
@@ -466,11 +463,11 @@ export function CalibrationPanel({
               onToggleManipulating={onToggleDirectManipulating}
               controlPoints={pitchControlPoints}
               activePointId={activeControlPointId}
-              onSetActivePoint={onSetActiveControlPoint || (() => {})}
-              onUpdatePoint={onUpdateControlPoint || (() => {})}
-              onResetPoint={onResetControlPoint || (() => {})}
-              onResetAll={onResetAllControlPoints || (() => {})}
-              onAddGridPoints={onAddGridPoints || (() => {})}
+              onSetActivePoint={onSetActiveControlPoint || (() => { })}
+              onUpdatePoint={onUpdateControlPoint || (() => { })}
+              onResetPoint={onResetControlPoint || (() => { })}
+              onResetAll={onResetAllControlPoints || (() => { })}
+              onAddGridPoints={onAddGridPoints || (() => { })}
             />
           )}
 
@@ -642,4 +639,6 @@ export function CalibrationPanel({
       )}
     </div>
   );
-}
+});
+
+CalibrationPanel.displayName = 'CalibrationPanel';
