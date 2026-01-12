@@ -712,7 +712,7 @@ export default function Index() {
             gridOverlay={gridOverlay}
             onGridOverlayChange={setGridOverlay}
             customPresets={customPresets}
-            onSavePreset={addPreset}
+            onSavePreset={(name) => addPreset(name, calibration, pitchScale)}
             onDeletePreset={deleteCustomPreset}
             heatmapType={heatmapType}
             onHeatmapChange={setHeatmapType}
