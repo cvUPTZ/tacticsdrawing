@@ -91,11 +91,11 @@ interface HandleInfo {
   cursor: string;
 }
 
-// Generate additional grid handles for fine control
+// Generate specific pitch handles for fine control
 export function generateGridHandles(corners: PitchCorners, density: number = 5): GridHandle[] {
   const handles: GridHandle[] = [];
 
-  // Bilinear interpolation helper
+  // Bilinear interpolation helper to place handles correctly in the distorted 3D space
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   const getGridPoint = (u: number, v: number) => {
     const topX = lerp(corners.topLeft.x, corners.topRight.x, u);
@@ -108,36 +108,60 @@ export function generateGridHandles(corners: PitchCorners, density: number = 5):
     };
   };
 
-  // Add grid points (skip edges and corners)
-  for (let i = 1; i < density; i++) {
-    for (let j = 1; j < density; j++) {
-      const u = i / density;
-      const v = j / density;
-      const point = getGridPoint(u, v);
-      handles.push({
-        id: `grid_${i}_${j}`,
-        x: point.x,
-        z: point.z,
-        type: "grid",
-      });
-    }
-  }
+  const pitchLength = 105;
+  const pitchWidth = 68;
+  const penaltyDepth = 16.5;
+  const penaltyWidth = 40.32;
+  const goalAreaDepth = 5.5;
+  const goalAreaWidth = 18.32;
+  const penaltySpotDist = 11;
+  const centerCircleRadius = 9.15;
 
-  // Add midpoints between corners on each edge dynamically
-  for (let i = 1; i < density; i++) {
-    const t = i / density;
-    // Top edge
-    const pt = getGridPoint(t, 0);
-    handles.push({ id: `edge_t${i}`, x: pt.x, z: pt.z, type: "edge" });
-    // Bottom edge
-    const pb = getGridPoint(t, 1);
-    handles.push({ id: `edge_b${i}`, x: pb.x, z: pb.z, type: "edge" });
-    // Left edge
-    const pl = getGridPoint(0, t);
-    handles.push({ id: `edge_l${i}`, x: pl.x, z: pl.z, type: "edge" });
-    // Right edge
-    const pr = getGridPoint(1, t);
-    handles.push({ id: `edge_r${i}`, x: pr.x, z: pr.z, type: "edge" });
+  const toU = (x: number) => (x + pitchLength / 2) / pitchLength;
+  const toV = (z: number) => (z + pitchWidth / 2) / pitchWidth;
+
+  // SPECIFIC POINTS FROM THE USER IMAGE
+  const points = [
+    // CENTER LINE & CIRCLE (Pink)
+    { id: "halfway_t", x: 0, z: -pitchWidth / 2 },
+    { id: "halfway_b", x: 0, z: pitchWidth / 2 },
+    { id: "center_spot", x: 0, z: 0 },
+    { id: "center_circle_t", x: 0, z: -centerCircleRadius },
+    { id: "center_circle_b", x: 0, z: centerCircleRadius },
+    { id: "center_circle_l", x: -centerCircleRadius, z: 0 },
+    { id: "center_circle_r", x: centerCircleRadius, z: 0 },
+
+    // LEFT PENALTY & GOAL AREA (Orange)
+    { id: "penalty_l_tl", x: -pitchLength / 2 + penaltyDepth, z: -penaltyWidth / 2 },
+    { id: "penalty_l_bl", x: -pitchLength / 2 + penaltyDepth, z: penaltyWidth / 2 },
+    { id: "penalty_l_gl_t", x: -pitchLength / 2, z: -penaltyWidth / 2 },
+    { id: "penalty_l_gl_b", x: -pitchLength / 2, z: penaltyWidth / 2 },
+    { id: "goal_l_tl", x: -pitchLength / 2 + goalAreaDepth, z: -goalAreaWidth / 2 },
+    { id: "goal_l_bl", x: -pitchLength / 2 + goalAreaDepth, z: goalAreaWidth / 2 },
+    { id: "goal_l_gl_t", x: -pitchLength / 2, z: -goalAreaWidth / 2 },
+    { id: "goal_l_gl_b", x: -pitchLength / 2, z: goalAreaWidth / 2 },
+    { id: "penalty_spot_l", x: -pitchLength / 2 + penaltySpotDist, z: 0 },
+
+    // RIGHT PENALTY & GOAL AREA (Blue)
+    { id: "penalty_r_tr", x: pitchLength / 2 - penaltyDepth, z: -penaltyWidth / 2 },
+    { id: "penalty_r_br", x: pitchLength / 2 - penaltyDepth, z: penaltyWidth / 2 },
+    { id: "penalty_r_gl_t", x: pitchLength / 2, z: -penaltyWidth / 2 },
+    { id: "penalty_r_gl_b", x: pitchLength / 2, z: penaltyWidth / 2 },
+    { id: "goal_r_tr", x: pitchLength / 2 - goalAreaDepth, z: -goalAreaWidth / 2 },
+    { id: "goal_r_br", x: pitchLength / 2 - goalAreaDepth, z: goalAreaWidth / 2 },
+    { id: "goal_r_gl_t", x: pitchLength / 2, z: -goalAreaWidth / 2 },
+    { id: "goal_r_gl_b", x: pitchLength / 2, z: goalAreaWidth / 2 },
+    { id: "penalty_spot_r", x: pitchLength / 2 - penaltySpotDist, z: 0 },
+  ];
+
+  for (const p of points) {
+    const gp = getGridPoint(toU(p.x), toV(p.z));
+    handles.push({
+      id: p.id,
+      x: gp.x,
+      z: gp.z,
+      type: "grid",
+    });
   }
 
   return handles;
@@ -226,7 +250,7 @@ export function createPitchFromCorners(
           const distU = u - gridU;
           const distV = v - gridV;
           const dist = Math.sqrt(distU * distU + distV * distV);
-          const sigma = 0.25; // Smaller radius for more local warping with higher density
+          const sigma = 0.2; // Optimized for specific point manipulation
           const weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
 
           if (weight > 0.01) {
@@ -502,18 +526,23 @@ export function createManipulationHandles(
   const gridHandleSize = 1.8;
 
   // Colors
-  const activeColor = 0x00ff88;
-  const cornerColor = 0xffaa00;
-  const edgeColor = 0x00d4ff;
-  const centerColor = 0xff4488;
-  const gridColor = 0x88ff88;
-  const lockedColor = 0x666666;
+  // Colors
+  const activeColor = new THREE.Color(0x00ff88);
+  const cornerColor = new THREE.Color(0xffaa00);
+  const edgeColor = new THREE.Color(0x00d4ff);
+  const centerColor = new THREE.Color(0xff4488);
+  const lockedColor = new THREE.Color(0x666666);
+  const gridColor = new THREE.Color(0x88ff88);
+
+  const blueColor = new THREE.Color("#00bfff");
+  const orangeColor = new THREE.Color("#ff7f00");
+  const pinkColor = new THREE.Color("#ff007f");
 
   const createHandle = (
     id: string,
     pos: { x: number; z: number },
     handleType: "corner" | "edge" | "center" | "grid",
-    baseColor: number,
+    baseColor: THREE.Color,
     isLocked: boolean = false,
   ) => {
     const isActive = activeHandle === id;
@@ -561,20 +590,22 @@ export function createManipulationHandles(
     ring.renderOrder = 998;
     handleGroup.add(ring);
 
-    // VERTICAL POLE
-    const poleHeight = size * 2;
-    const poleGeometry = new THREE.CylinderGeometry(size * 0.2, size * 0.2, poleHeight, 12);
-    const poleMaterial = new THREE.MeshBasicMaterial({
-      color: displayColor,
-      transparent: true,
-      opacity: isLocked ? 0.4 : 0.9,
-      depthTest: false,
-    });
-    const pole = new THREE.Mesh(poleGeometry, poleMaterial);
-    pole.position.set(pos.x, poleHeight / 2, pos.z);
-    pole.userData = { handleId: id, isLocked, handleType };
-    pole.renderOrder = 997;
-    handleGroup.add(pole);
+    // Add vertical pole ONLY for main handles (corners, edges, center) to reduce clutter
+    if (handleType !== "grid") {
+      const poleHeight = size * 2;
+      const poleGeometry = new THREE.CylinderGeometry(size * 0.2, size * 0.2, poleHeight, 12);
+      const poleMaterial = new THREE.MeshBasicMaterial({
+        color: displayColor,
+        transparent: true,
+        opacity: isLocked ? 0.4 : 0.9,
+        depthTest: false,
+      });
+      const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+      pole.position.set(pos.x, poleHeight / 2, pos.z);
+      pole.userData = { handleId: id, isLocked, handleType };
+      pole.renderOrder = 997;
+      handleGroup.add(pole);
+    }
 
     // GROUND CIRCLE
     const groundGeometry = new THREE.CircleGeometry(size * 0.5, 32);
@@ -673,15 +704,26 @@ export function createManipulationHandles(
   const isCenterLocked = lockedHandles.center || false;
   group.add(createHandle("center", { x: centerX, z: centerZ }, "center", centerColor, isCenterLocked));
 
-  // GRID HANDLES (20+) - Only shown when enabled
+  // GRID HANDLES (25 specific points) - Only shown when enabled
   if (showGridHandles) {
-    const gridHandles = generateGridHandles(corners, 6);
+    const gridHandles = generateGridHandles(corners);
 
     for (const gh of gridHandles) {
       // Apply any existing offset
       const offset = extendedHandles.gridOffsets[gh.id] || { dx: 0, dz: 0 };
       const isLocked = lockedHandles[gh.id] || false;
-      group.add(createHandle(gh.id, { x: gh.x + offset.dx, z: gh.z + offset.dz }, gh.type, gridColor, isLocked));
+
+      // Select color based on ID (to match user's diagram)
+      let hColor: THREE.Color = gridColor;
+      if (gh.id.includes("halfway") || gh.id.includes("center")) {
+        hColor = pinkColor;
+      } else if (gh.id.includes("_l_") || gh.id.endsWith("_l")) {
+        hColor = orangeColor;
+      } else if (gh.id.includes("_r_") || gh.id.endsWith("_r")) {
+        hColor = blueColor;
+      }
+
+      group.add(createHandle(gh.id, { x: gh.x + offset.dx, z: gh.z + offset.dz }, gh.type, hColor, isLocked));
     }
   }
 
