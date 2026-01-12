@@ -34,7 +34,7 @@ const POINT_CATEGORIES = [
   },
   {
     label: 'Center',
-    points: ['center', 'center_left', 'center_right', 'center_top', 'center_bottom'],
+    points: ['center', 'center_left', 'center_right', 'center_top', 'center_bottom', 'halfway_top', 'halfway_bottom'],
   },
   {
     label: 'Penalty Spots',
@@ -57,8 +57,8 @@ const POINT_CATEGORIES = [
     points: ['goalbox_right_tl', 'goalbox_right_tr', 'goalbox_right_bl', 'goalbox_right_br'],
   },
   {
-    label: 'Goals',
-    points: ['goal_left_tl', 'goal_left_bl', 'goal_right_tl', 'goal_right_bl'],
+    label: 'Goal Posts',
+    points: ['goal_left_top', 'goal_left_bottom', 'goal_right_top', 'goal_right_bottom'],
   },
 ];
 
@@ -74,7 +74,7 @@ export function PointCalibration({
   onAutoCalibrate,
 }: PointCalibrationProps) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  
+
   const setPoints = points.filter(p => p.screenX !== undefined);
   const canCalibrate = setPoints.length >= 4;
 
@@ -127,10 +127,10 @@ export function PointCalibration({
             <div className="space-y-1">
               {POINT_CATEGORIES.map(category => {
                 const isExpanded = expandedCategory === category.label;
-                const categoryPoints = PITCH_REFERENCE_POINTS.filter(p => 
+                const categoryPoints = PITCH_REFERENCE_POINTS.filter(p =>
                   category.points.includes(p.id)
                 );
-                const setInCategory = points.filter(p => 
+                const setInCategory = points.filter(p =>
                   category.points.includes(p.id) && p.screenX !== undefined
                 ).length;
 
@@ -148,7 +148,7 @@ export function PointCalibration({
                         {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                       </div>
                     </button>
-                    
+
                     {isExpanded && (
                       <div className="grid grid-cols-2 gap-0.5 mt-1 pl-2">
                         {categoryPoints.map(refPoint => {
