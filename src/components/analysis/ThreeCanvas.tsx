@@ -641,8 +641,19 @@ export function ThreeCanvas({
             }
             break;
           default:
-            // Handle grid and other custom handles
-            if (activeHandleRef.current.startsWith("grid_") || activeHandleRef.current.startsWith("edge_")) {
+            // Handle specific pitch handles (grid handles and extra points)
+            const mainHandles = [
+              "topLeft",
+              "topRight",
+              "bottomLeft",
+              "bottomRight",
+              "top",
+              "bottom",
+              "left",
+              "right",
+              "center",
+            ];
+            if (!mainHandles.includes(activeHandleRef.current)) {
               const currentExtended = { ...extendedHandles };
               const currentOffsets = { ...currentExtended.gridOffsets };
 
