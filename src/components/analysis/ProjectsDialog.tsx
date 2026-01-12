@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { Folder, Trash2, Plus } from 'lucide-react';
 import {
@@ -20,7 +21,7 @@ interface ProjectsDialogProps {
   onCreateProject: () => void;
 }
 
-export function ProjectsDialog({
+export const ProjectsDialog = forwardRef<HTMLDivElement, ProjectsDialogProps>(({
   open,
   onOpenChange,
   projects,
@@ -28,7 +29,7 @@ export function ProjectsDialog({
   onSelectProject,
   onDeleteProject,
   onCreateProject,
-}: ProjectsDialogProps) {
+}, ref) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -100,4 +101,6 @@ export function ProjectsDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});
+
+ProjectsDialog.displayName = 'ProjectsDialog';
