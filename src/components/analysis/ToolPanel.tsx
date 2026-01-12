@@ -219,12 +219,14 @@ export const ToolPanel = forwardRef<HTMLDivElement, ToolPanelProps>(
               <Spline className="h-3 w-3 text-primary" />
               <span className="text-[10px] font-medium">Tactical Perspective</span>
             </div>
-            <Switch
-              checked={showTacticalView}
-              onCheckedChange={onToggleTacticalView}
-              disabled={!hasVideo}
-              className="scale-75"
-            />
+            <Switch checked={showTacticalView} onCheckedChange={onToggleTacticalView} disabled={!hasVideo} />
+          </div>
+          <div className="flex items-center justify-between py-1">
+            <div className="flex items-center gap-2">
+              <Grid3X3 className="h-3 w-3 text-primary" />
+              <span className="text-[10px] font-medium">Show Pitch</span>
+            </div>
+            <Switch checked={showPitch} onCheckedChange={onTogglePitch} disabled={!hasVideo} className="scale-75" />
           </div>
         </div>
 
