@@ -5,7 +5,17 @@ import { HeatmapType, HeatmapOverlay, getHeatmapColor } from "./HeatmapOverlay";
 import { createSOTAPitch, PITCH_REFERENCE_POINTS } from "./SOTAPitch";
 import { CalibrationPoint } from "./PointCalibration";
 import { PitchTransform, DEFAULT_TRANSFORM } from "./PitchTransformControls";
-import { PitchCorners, DEFAULT_CORNERS, createPitchFromCorners, createManipulationHandles, LockedHandles, DEFAULT_LOCKED_HANDLES, ExtendedHandles, DEFAULT_EXTENDED_HANDLES, snapToLine } from "./PitchManipulator";
+import {
+  PitchCorners,
+  DEFAULT_CORNERS,
+  createPitchFromCorners,
+  createManipulationHandles,
+  LockedHandles,
+  DEFAULT_LOCKED_HANDLES,
+  ExtendedHandles,
+  DEFAULT_EXTENDED_HANDLES,
+  snapToLine,
+} from "./PitchManipulator";
 
 interface PitchScale {
   width: number;
@@ -237,7 +247,7 @@ export function ThreeCanvas({
     const cameraMouseDownHandler = (e: MouseEvent) => {
       // Skip if pitch manipulation is handling this event
       if ((e as any).__pitchManipulationHandled) return;
-      
+
       if (e.button === 0) {
         // Left click
         isDraggingRef.current = true;
@@ -449,7 +459,13 @@ export function ThreeCanvas({
 
     // We read activeHandle from ref inside createManipulationHandles or pass it
     // The dependency array includes pitchCorners and activeHandle, so this re-renders handles correctly.
-    const handles = createManipulationHandles(pitchCorners, activeHandle, lockedHandles, showGridHandles, extendedHandles);
+    const handles = createManipulationHandles(
+      pitchCorners,
+      activeHandle,
+      lockedHandles,
+      showGridHandles,
+      extendedHandles,
+    );
     handlesGroup.add(handles);
   }, [isPitchManipulating, pitchCorners, activeHandle, lockedHandles, showGridHandles, extendedHandles]);
 
@@ -513,7 +529,7 @@ export function ThreeCanvas({
             console.log("🔒 Handle is locked:", handleId);
             return; // Don't allow dragging locked handles
           }
-          
+
           const worldPos = getWorldPosition(e);
           if (worldPos) {
             // Mark event as handled by pitch manipulation so camera controls skip it
@@ -527,7 +543,7 @@ export function ThreeCanvas({
             dragStartRef.current = worldPos;
             cornersStartRef.current = { ...pitchCorners };
             container.style.cursor = "grabbing";
-            
+
             console.log("🎯 Handle grabbed:", handleId);
           }
         }
@@ -583,19 +599,40 @@ export function ThreeCanvas({
             newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
             newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
             break;
+          default:
+            // Handle grid and other custom handles
+            if (activeHandleRef.current.startsWith("grid_") || activeHandleRef.current.startsWith("edge_")) {
+              const currentExtended = { ...extendedHandles };
+              const currentOffsets = { ...currentExtended.gridOffsets };
+
+              currentOffsets[activeHandleRef.current] = {
+                dx: (currentOffsets[activeHandleRef.current]?.dx || 0) + deltaX,
+                dz: (currentOffsets[activeHandleRef.current]?.dz || 0) + deltaZ,
+              };
+
+              onExtendedHandlesChange?.({
+                ...currentExtended,
+                gridOffsets: currentOffsets,
+              });
+
+              // We need to reset the drag start point so deltas don't accumulate incorrectly
+              // because we are updating the offset in place rather than from a start state.
+              dragStartRef.current = worldPos;
+            }
+            break;
         }
 
         // Apply snapping if enabled
         if (enableSnapping) {
-          const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'] as const;
+          const corners = ["topLeft", "topRight", "bottomLeft", "bottomRight"] as const;
           for (const corner of corners) {
-            const snapX = snapToLine(newCorners[corner].x, 'x');
-            const snapZ = snapToLine(newCorners[corner].z, 'z');
+            const snapX = snapToLine(newCorners[corner].x, "x");
+            const snapZ = snapToLine(newCorners[corner].z, "z");
             if (snapX.snapped) newCorners[corner].x = snapX.value;
             if (snapZ.snapped) newCorners[corner].z = snapZ.value;
           }
         }
-        
+
         onPitchCornersChange?.(newCorners);
         return; // Skip cursor hover logic while dragging
       }
@@ -2048,7 +2085,7 @@ export function ThreeCanvas({
   return (
     <div
       ref={containerRef}
-      className={`three-layer ${(isInteractive || isPitchManipulating) ? "interactive" : ""}`}
+      className={`three-layer ${isInteractive || isPitchManipulating ? "interactive" : ""}`}
       onClick={handleClick}
     >
       {/* HTML Labels for player names */}
