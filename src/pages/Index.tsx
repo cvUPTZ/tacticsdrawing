@@ -34,6 +34,7 @@ import {
 import { AnnotationsList } from "@/components/analysis/AnnotationsList";
 import { ProjectsDialog } from "@/components/analysis/ProjectsDialog";
 import { HeatmapType } from "@/components/analysis/HeatmapOverlay";
+import { SmartFieldPoints, SMART_FIELD_POINTS, FieldPoint } from "@/components/analysis/SmartFieldpoints";
 import { toast } from "sonner";
 
 // Formation detection utility
@@ -181,6 +182,11 @@ export default function Index() {
   const [pitchControlPoints, setPitchControlPoints] = useState<PitchControlPoint[]>(DEFAULT_PITCH_CONTROL_POINTS);
   const [activeControlPointId, setActiveControlPointId] = useState<string | null>(null);
 
+  // Smart Field Mapping state - NEW
+  const [isFieldMapping, setIsFieldMapping] = useState(false);
+  const [fieldPoints, setFieldPoints] = useState<FieldPoint[]>(SMART_FIELD_POINTS);
+  const [activeFieldPointId, setActiveFieldPointId] = useState<string | null>(null);
+
   // Tactical View state
   const [showTacticalView, setShowTacticalView] = useState(false);
   const [showPitch, setShowPitch] = useState(true);
@@ -217,6 +223,59 @@ export default function Index() {
   const handleAddGridPoints = useCallback(() => {
     setPitchControlPoints(generateGridControlPoints("medium"));
     toast.success("Added grid control points for precise warping");
+  }, []);
+
+  // Smart Field Mapping handlers - NEW
+  const handleUpdateFieldPoint = useCallback(
+    (id: string, screenX: number, screenY: number) => {
+      setFieldPoints((prev) => prev.map((p) => (p.id === id ? { ...p, screenX, screenY } : p)));
+      setActiveFieldPointId(null);
+      toast.success("Point updated");
+
+      // Auto-calibrate if enough points
+      const currentPoints = fieldPoints.map((p) => (p.id === id ? { ...p, screenX, screenY } : p));
+      const setPoints = currentPoints.filter((p) => p.screenX !== undefined && p.screenY !== undefined);
+
+      if (setPoints.length >= 4) {
+        // Small delay to allow UI to update
+        setTimeout(() => {
+          const container = document.querySelector(".canvas-container");
+          if (!container) return;
+          const rect = container.getBoundingClientRect();
+
+          const activePoints: CalibrationPoint3D[] = setPoints.map((p) => ({
+            world: { x: p.pitchX, y: 0, z: p.pitchZ },
+            screen: { x: p.screenX!, y: p.screenY! },
+          }));
+
+          try {
+            const result = solveCameraPose(
+              activePoints,
+              rect.width,
+              rect.height,
+              calibration,
+              true, // Use extensive search
+            );
+            updateCalibration(result.calibration);
+            toast.success(`Auto-calibrated with ${setPoints.length} points!`);
+          } catch (e) {
+            console.error("Auto-calibration failed", e);
+          }
+        }, 100);
+      }
+    },
+    [fieldPoints, calibration, updateCalibration],
+  );
+
+  const handleResetFieldPoints = useCallback(() => {
+    setFieldPoints(SMART_FIELD_POINTS);
+    toast.success("Field points reset");
+  }, []);
+
+  const handleToggleFieldPointVisibility = useCallback((id: string) => {
+    setFieldPoints((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, isVisible: p.isVisible === false ? true : false } : p)),
+    );
   }, []);
 
   // Auto-calibrate from any set of points (>= 4)
@@ -737,12 +796,18 @@ export default function Index() {
           <div
             className="flex-1 canvas-container relative"
             onClick={(e) => {
-              // Handle calibration points clicks
-              if (isCornerCalibrating && activePointId) {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = e.clientX - rect.left;
+              const y = e.clientY - rect.top;
 
+              // 3. Handle Smart Field Point clicks
+              if (isFieldMapping && activeFieldPointId) {
+                handleUpdateFieldPoint(activeFieldPointId, x, y);
+                return;
+              }
+
+              // 4. Handle standard Calibration Point clicks
+              if (isCornerCalibrating && activePointId) {
                 setCalibrationPoints((prev) => {
                   const existing = prev.find((p) => p.id === activePointId);
                   if (existing) {
@@ -927,8 +992,16 @@ export default function Index() {
             isCalibrating={isCalibrating}
             onUpdate={updateCalibration}
             onReset={resetCalibration}
-            onToggleCalibrating={toggleCalibrating}
             onApplyPreset={applyPreset}
+            // Smart Field Mapping
+            isFieldMapping={isFieldMapping}
+            onToggleFieldMapping={() => setIsFieldMapping(!isFieldMapping)}
+            fieldPoints={fieldPoints}
+            activeFieldPointId={activeFieldPointId}
+            onSetActiveFieldPoint={setActiveFieldPointId}
+            onUpdateFieldPoint={handleUpdateFieldPoint}
+            onResetFieldPoints={handleResetFieldPoints}
+            onToggleVisibility={handleToggleFieldPointVisibility}
             pitchScale={pitchScale}
             onPitchScaleChange={setPitchScale}
             isCornerCalibrating={isCornerCalibrating}
