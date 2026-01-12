@@ -11,7 +11,7 @@ import { CalibrationPreset } from "@/hooks/useCalibrationPresets";
 import { DirectPitchManipulation, PitchControlPoint } from "./DirectPitchManipulation";
 import { SmartFieldPoints, FieldPoint } from "./SmartFieldpoints";
 import { BlenderPitchControls } from "./BlenderPitchControls";
-import { PitchCorners, LockedHandles } from "./PitchManipulator";
+import { PitchCorners, LockedHandles, ExtendedHandles } from "./PitchManipulator";
 import { PitchSection, ZoomLevel } from "./PitchSectionSelector";
 
 interface PitchScale {
@@ -84,6 +84,17 @@ interface CalibrationPanelProps {
   onZoomLevelChange?: (zoom: ZoomLevel) => void;
   pitchSectionConfirmed?: boolean;
   onPitchSectionConfirm?: () => void;
+  // Grid handles
+  showGridHandles?: boolean;
+  onShowGridHandlesChange?: (show: boolean) => void;
+  extendedHandles?: ExtendedHandles;
+  onExtendedHandlesChange?: (handles: ExtendedHandles) => void;
+  // Snapping
+  enableSnapping?: boolean;
+  onEnableSnappingChange?: (enable: boolean) => void;
+  // Lens distortion
+  lensDistortion?: number;
+  onLensDistortionChange?: (distortion: number) => void;
 }
 
 const PRESETS = [
@@ -140,12 +151,20 @@ export function CalibrationPanel({
   onPitchCornersReset,
   lockedHandles,
   onLockedHandlesChange,
-  selectedPitchSection = 'full',
-  selectedZoomLevel = 'wide',
+  selectedPitchSection = "full",
+  selectedZoomLevel = "wide",
   onPitchSectionChange,
   onZoomLevelChange,
   pitchSectionConfirmed = false,
   onPitchSectionConfirm,
+  showGridHandles,
+  onShowGridHandlesChange,
+  extendedHandles,
+  onExtendedHandlesChange,
+  enableSnapping,
+  onEnableSnappingChange,
+  lensDistortion,
+  onLensDistortionChange,
 }: CalibrationPanelProps) {
   const [activeTab, setActiveTab] = useState<"position" | "rotation" | "pitch">("position");
   const [newPresetName, setNewPresetName] = useState("");
@@ -416,6 +435,14 @@ export function CalibrationPanel({
               onZoomChange={onZoomLevelChange}
               sectionConfirmed={pitchSectionConfirmed}
               onSectionConfirm={onPitchSectionConfirm}
+              showGridHandles={showGridHandles}
+              onShowGridHandlesChange={onShowGridHandlesChange}
+              extendedHandles={extendedHandles}
+              onExtendedHandlesChange={onExtendedHandlesChange}
+              enableSnapping={enableSnapping}
+              onEnableSnappingChange={onEnableSnappingChange}
+              lensDistortion={lensDistortion}
+              onLensDistortionChange={onLensDistortionChange}
             />
           )}
           {/* SMART FIELD POINTS - Handles partial visibility */}
