@@ -799,12 +799,13 @@ export default function Index() {
               lockedHandles={lockedHandles}
               isDirectManipulating={isDirectManipulating}
               pitchControlPoints={pitchControlPoints}
-              activeControlPointId={activeControlPointId}
               showGridHandles={showGridHandles}
-              enableSnapping={enableSnapping}
-              lensDistortion={lensDistortion}
               extendedHandles={extendedHandles}
               onExtendedHandlesChange={setExtendedHandles}
+              enableSnapping={enableSnapping}
+              lensDistortion={lensDistortion}
+              selectedPitchSection={selectedPitchSection}
+              activeControlPointId={activeControlPointId}
             />
 
             {/* Corner calibration markers - draggable */}
