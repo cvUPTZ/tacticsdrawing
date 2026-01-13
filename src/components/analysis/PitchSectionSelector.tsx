@@ -428,41 +428,14 @@ export function PitchSectionSelector({
   );
 }
 
-// Helper to get pitch corners that represent ONLY the visible section
-// This creates a subsection of the pitch, not a scaled version
+// Helper to get pitch corners for alignment
+// IMPORTANT: We always return FULL PITCH corners because section selection 
+// only affects which LINES are drawn, not the corner positions.
+// Users still need to align the full pitch corners to video, then
+// the section filtering will show only the relevant pitch lines.
 export function getInitialCornersForSection(section: PitchSection): PitchCorners {
-  // Full pitch dimensions
-  const fullPitch = DEFAULT_CORNERS;
-  
-  // For full pitch, return default corners
-  if (section === 'full' || section === 'custom') {
-    return { ...fullPitch };
-  }
-  
-  const area = SECTION_VISIBLE_AREAS[section];
-  
-  // Calculate the actual world coordinates for this section
-  // The pitch goes from -52.5 to 52.5 on X, and -34 to 34 on Z
-  const pitchMinX = -52.5;
-  const pitchMaxX = 52.5;
-  const pitchMinZ = -34;
-  const pitchMaxZ = 34;
-  
-  const pitchWidth = pitchMaxX - pitchMinX; // 105
-  const pitchHeight = pitchMaxZ - pitchMinZ; // 68
-  
-  // Convert normalized area coordinates to world coordinates
-  const x1 = pitchMinX + area.x1 * pitchWidth;
-  const x2 = pitchMinX + area.x2 * pitchWidth;
-  const z1 = pitchMinZ + area.y1 * pitchHeight;
-  const z2 = pitchMinZ + area.y2 * pitchHeight;
-
-  return {
-    topLeft: { x: x1, z: z1 },
-    topRight: { x: x2, z: z1 },
-    bottomLeft: { x: x1, z: z2 },
-    bottomRight: { x: x2, z: z2 },
-  };
+  // Always return full pitch corners - section only filters visible lines
+  return { ...DEFAULT_CORNERS };
 }
 
 // Get the visible area definition for filtering pitch elements
