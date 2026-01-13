@@ -29,8 +29,7 @@ import {
 import { 
   PitchSectionSelector, 
   PitchSection, 
-  ZoomLevel, 
-  getInitialCornersForSection 
+  ZoomLevel
 } from './PitchSectionSelector';
 
 interface BlenderPitchControlsProps {
@@ -333,9 +332,7 @@ export function BlenderPitchControls({
               selectedZoom={selectedZoom}
               onSectionChange={(section) => {
                 onSectionChange(section);
-                // Apply initial corners based on section
-                const initialCorners = getInitialCornersForSection(section);
-                onCornersChange(initialCorners);
+                // Note: Corners stay as full pitch - section only filters which lines are drawn
               }}
               onZoomChange={onZoomChange}
               onConfirm={() => {

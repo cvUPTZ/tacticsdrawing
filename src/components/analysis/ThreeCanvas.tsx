@@ -690,68 +690,71 @@ export const ThreeCanvas = forwardRef<HTMLDivElement, ThreeCanvasProps>(
 
           const newCorners = { ...start };
 
+          // Always use lockedHandlesRef.current to avoid stale closure issues
+          const locks = lockedHandlesRef.current;
+          
           switch (activeHandleRef.current) {
             case "topLeft":
-              if (!lockedHandles.topLeft) {
+              if (!locks.topLeft) {
                 newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
               }
               break;
             case "topRight":
-              if (!lockedHandles.topRight) {
+              if (!locks.topRight) {
                 newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
               }
               break;
             case "bottomLeft":
-              if (!lockedHandles.bottomLeft) {
+              if (!locks.bottomLeft) {
                 newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
               }
               break;
             case "bottomRight":
-              if (!lockedHandles.bottomRight) {
+              if (!locks.bottomRight) {
                 newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
               }
               break;
             case "top":
-              if (!lockedHandlesRef.current.top && !lockedHandlesRef.current.topLeft) {
+              if (!locks.top && !locks.topLeft) {
                 newCorners.topLeft = { x: start.topLeft.x, z: start.topLeft.z + deltaZ };
               }
-              if (!lockedHandlesRef.current.top && !lockedHandlesRef.current.topRight) {
+              if (!locks.top && !locks.topRight) {
                 newCorners.topRight = { x: start.topRight.x, z: start.topRight.z + deltaZ };
               }
               break;
             case "bottom":
-              if (!lockedHandlesRef.current.bottom && !lockedHandlesRef.current.bottomLeft) {
+              if (!locks.bottom && !locks.bottomLeft) {
                 newCorners.bottomLeft = { x: start.bottomLeft.x, z: start.bottomLeft.z + deltaZ };
               }
-              if (!lockedHandlesRef.current.bottom && !lockedHandlesRef.current.bottomRight) {
+              if (!locks.bottom && !locks.bottomRight) {
                 newCorners.bottomRight = { x: start.bottomRight.x, z: start.bottomRight.z + deltaZ };
               }
               break;
             case "left":
-              if (!lockedHandlesRef.current.left && !lockedHandlesRef.current.topLeft) {
+              if (!locks.left && !locks.topLeft) {
                 newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z };
               }
-              if (!lockedHandlesRef.current.left && !lockedHandlesRef.current.bottomLeft) {
+              if (!locks.left && !locks.bottomLeft) {
                 newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z };
               }
               break;
             case "right":
-              if (!lockedHandlesRef.current.right && !lockedHandlesRef.current.topRight) {
+              if (!locks.right && !locks.topRight) {
                 newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z };
               }
-              if (!lockedHandlesRef.current.right && !lockedHandlesRef.current.bottomRight) {
+              if (!locks.right && !locks.bottomRight) {
                 newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z };
               }
               break;
             case "center":
-              if (!lockedHandlesRef.current.center) {
-                if (!lockedHandlesRef.current.topLeft)
+              if (!locks.center) {
+                if (!locks.topLeft)
                   newCorners.topLeft = { x: start.topLeft.x + deltaX, z: start.topLeft.z + deltaZ };
-                if (!lockedHandlesRef.current.topRight)
+                if (!locks.topRight)
                   newCorners.topRight = { x: start.topRight.x + deltaX, z: start.topRight.z + deltaZ };
-                if (!lockedHandlesRef.current.bottomLeft)
+                if (!locks.bottomLeft)
                   newCorners.bottomLeft = { x: start.bottomLeft.x + deltaX, z: start.bottomLeft.z + deltaZ };
-                if (!lockedHandlesRef.current.bottomRight)
+                if (!locks.bottomRight)
                   newCorners.bottomRight = { x: start.bottomRight.x + deltaX, z: start.bottomRight.z + deltaZ };
               }
               break;
