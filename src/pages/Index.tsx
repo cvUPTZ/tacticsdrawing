@@ -191,6 +191,10 @@ export default function Index() {
   const [showTacticalView, setShowTacticalView] = useState(false);
   const [showPitch, setShowPitch] = useState(true);
 
+  // Field line detection state
+  const [isLineDetectionActive, setIsLineDetectionActive] = useState(false);
+  const [canvasContainerSize, setCanvasContainerSize] = useState({ width: 800, height: 450 });
+
   const handlePitchTransformReset = useCallback(() => {
     setPitchTransform(DEFAULT_TRANSFORM);
   }, []);
@@ -371,6 +375,21 @@ export default function Index() {
       setProjectName(currentProject.name);
     }
   }, [currentProject]);
+
+  // Track canvas container size for line detection overlay
+  useEffect(() => {
+    const container = document.querySelector('.canvas-container');
+    if (!container) return;
+    
+    const updateSize = () => {
+      const rect = container.getBoundingClientRect();
+      setCanvasContainerSize({ width: rect.width, height: rect.height });
+    };
+    
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, [videoSrc]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1063,6 +1082,11 @@ export default function Index() {
             onZoomLevelChange={setSelectedZoomLevel}
             pitchSectionConfirmed={pitchSectionConfirmed}
             onPitchSectionConfirm={() => setPitchSectionConfirmed(true)}
+            isLineDetectionActive={isLineDetectionActive}
+            onToggleLineDetection={() => setIsLineDetectionActive(!isLineDetectionActive)}
+            videoElement={videoRef.current}
+            containerWidth={canvasContainerSize.width}
+            containerHeight={canvasContainerSize.height}
           />
         </aside>
       </div>
