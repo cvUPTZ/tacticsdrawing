@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { CalibrationState } from "@/types/analysis";
-import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, Grid3X3, Wand2, Save, Trash2, Flame } from "lucide-react";
+import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, Grid3X3, Wand2, Save, Trash2, Flame, Scan } from "lucide-react";
 import { useState, forwardRef } from "react";
 import { GridOverlayType } from "./ThreeCanvas";
 import { HeatmapType } from "./HeatmapOverlay";
@@ -14,6 +14,7 @@ import { BlenderPitchControls } from "./BlenderPitchControls";
 import { PointCalibration, CalibrationPoint } from "./PointCalibration";
 import { PitchCorners, LockedHandles, ExtendedHandles } from "./PitchManipulator";
 import { PitchSection, ZoomLevel } from "./PitchSectionSelector";
+import { FieldLineDetection } from "./FieldLineDetection";
 
 interface PitchScale {
   width: number;
@@ -104,6 +105,12 @@ interface CalibrationPanelProps {
   // Lens distortion
   lensDistortion?: number;
   onLensDistortionChange?: (distortion: number) => void;
+  // Field line detection
+  isLineDetectionActive?: boolean;
+  onToggleLineDetection?: () => void;
+  videoElement?: HTMLVideoElement | null;
+  containerWidth?: number;
+  containerHeight?: number;
 }
 
 const PRESETS = [
@@ -183,6 +190,11 @@ export const CalibrationPanel = forwardRef<HTMLDivElement, CalibrationPanelProps
       onEnableSnappingChange,
       lensDistortion,
       onLensDistortionChange,
+      isLineDetectionActive = false,
+      onToggleLineDetection,
+      videoElement,
+      containerWidth = 800,
+      containerHeight = 450,
     },
     ref,
   ) => {
@@ -521,6 +533,19 @@ export const CalibrationPanel = forwardRef<HTMLDivElement, CalibrationPanelProps
                 onResetAll={onResetAllControlPoints || (() => {})}
                 onAddGridPoints={onAddGridPoints || (() => {})}
               />
+            )}
+
+            {/* Field Line Detection */}
+            {onToggleLineDetection && (
+              <div className="space-y-2 pt-2 border-t border-border/50">
+                <FieldLineDetection
+                  videoElement={videoElement || null}
+                  isActive={isLineDetectionActive}
+                  onToggle={onToggleLineDetection}
+                  containerWidth={containerWidth}
+                  containerHeight={containerHeight}
+                />
+              </div>
             )}
 
             {/* Manual Point Calibration */}
