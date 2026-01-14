@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { CalibrationState } from "@/types/analysis";
-import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, Grid3X3, Wand2, Save, Trash2, Flame, Scan } from "lucide-react";
+import { RotateCcw, Camera, Move3D, Maximize2, MousePointer2, Grid3X3, Wand2, Save, Trash2, Flame, Scan, Brain } from "lucide-react";
 import { useState, forwardRef } from "react";
 import { GridOverlayType } from "./ThreeCanvas";
 import { HeatmapType } from "./HeatmapOverlay";
@@ -15,6 +15,7 @@ import { PointCalibration, CalibrationPoint } from "./PointCalibration";
 import { PitchCorners, LockedHandles, ExtendedHandles } from "./PitchManipulator";
 import { PitchSection, ZoomLevel } from "./PitchSectionSelector";
 import { FieldLineDetection } from "./FieldLineDetection";
+import { AIDetection } from "./AIDetection";
 
 interface PitchScale {
   width: number;
@@ -111,6 +112,9 @@ interface CalibrationPanelProps {
   videoElement?: HTMLVideoElement | null;
   containerWidth?: number;
   containerHeight?: number;
+  // AI Detection
+  isAIDetectionActive?: boolean;
+  onToggleAIDetection?: () => void;
 }
 
 const PRESETS = [
@@ -195,6 +199,8 @@ export const CalibrationPanel = forwardRef<HTMLDivElement, CalibrationPanelProps
       videoElement,
       containerWidth = 800,
       containerHeight = 450,
+      isAIDetectionActive = false,
+      onToggleAIDetection,
     },
     ref,
   ) => {
@@ -533,6 +539,29 @@ export const CalibrationPanel = forwardRef<HTMLDivElement, CalibrationPanelProps
                 onResetAll={onResetAllControlPoints || (() => {})}
                 onAddGridPoints={onAddGridPoints || (() => {})}
               />
+            )}
+
+            {/* AI Detection - Players, Ball, Teams, Lines */}
+            {onToggleAIDetection && (
+              <div className="space-y-2 pt-2 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Brain className="h-3 w-3" />
+                    AI Detection
+                  </Label>
+                  <Button
+                    onClick={onToggleAIDetection}
+                    variant={isAIDetectionActive ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[9px]"
+                  >
+                    {isAIDetectionActive ? "Active" : "Enable"}
+                  </Button>
+                </div>
+                <p className="text-[9px] text-muted-foreground">
+                  Detect players, ball, teams & field lines using AI vision
+                </p>
+              </div>
             )}
 
             {/* Field Line Detection */}
