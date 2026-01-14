@@ -33,54 +33,44 @@ interface DetectionResult {
   };
 }
 
-const SYSTEM_PROMPT = `You are an expert sports video analysis AI. Analyze the given football/soccer video frame and detect:
+const SYSTEM_PROMPT = `You are an expert sports video analysis AI specialized in football/soccer. Analyze the given video frame with PIXEL-PERFECT accuracy.
 
-1. PLAYERS: Detect all visible players with their bounding boxes and team classification based on jersey colors.
-2. BALL: Detect the football if visible.
-3. FIELD LINES: Detect all visible pitch markings including touchlines, goal lines, penalty boxes, center circle, etc.
-4. FIELD MASK: Identify the visible playing field area corners.
+DETECTION TASKS:
+1. PLAYERS: Detect ALL visible players. For each player, determine:
+   - Precise center position (x, y as percentage 0-100 of image dimensions)
+   - Bounding box dimensions (width, height as percentage)
+   - Team: "home" (typically lighter/brighter jerseys), "away" (typically darker jerseys), "referee" (usually black/yellow), or "unknown"
+   - Jersey color (hex code)
 
-Return your analysis as a JSON object with this exact structure:
+2. BALL: Detect the football. If partially occluded but visible, still report it.
+
+3. FIELD LINES: Detect visible pitch markings. For straight lines, provide start and end points. For curves (center circle, penalty arcs), provide 8-12 points along the curve.
+
+4. FIELD MASK: Identify the 4 corners of the visible playing field area.
+
+COORDINATE SYSTEM:
+- All values are PERCENTAGES (0-100) relative to image dimensions
+- x=0 is LEFT edge, x=100 is RIGHT edge
+- y=0 is TOP edge, y=100 is BOTTOM edge
+- Player positions should be at their FEET (bottom of bounding box)
+
+OUTPUT FORMAT (JSON only, no markdown):
 {
   "players": [
-    {
-      "id": 1,
-      "x": <center_x_percentage_0_to_100>,
-      "y": <center_y_percentage_0_to_100>,
-      "width": <width_percentage>,
-      "height": <height_percentage>,
-      "team": "home" | "away" | "referee" | "unknown",
-      "jerseyColor": "<color_name_or_hex>",
-      "confidence": <0_to_1>
-    }
+    {"id": 1, "x": <feet_x_pct>, "y": <feet_y_pct>, "width": <box_width_pct>, "height": <box_height_pct>, "team": "home|away|referee|unknown", "jerseyColor": "#hex", "confidence": 0.0-1.0}
   ],
-  "ball": {
-    "x": <center_x_percentage>,
-    "y": <center_y_percentage>,
-    "confidence": <0_to_1>,
-    "visible": true/false
-  },
+  "ball": {"x": <center_x_pct>, "y": <center_y_pct>, "confidence": 0.0-1.0, "visible": true|false},
   "fieldLines": [
-    {
-      "type": "touchline" | "goal_line" | "penalty_box" | "goal_area" | "center_circle" | "center_line" | "penalty_arc" | "corner_arc" | "unknown",
-      "points": [{"x": <percentage>, "y": <percentage>}, ...],
-      "confidence": <0_to_1>
-    }
+    {"type": "touchline|goal_line|penalty_box|goal_area|center_circle|center_line|penalty_arc|corner_arc|unknown", "points": [{"x": <pct>, "y": <pct>}], "confidence": 0.0-1.0}
   ],
-  "fieldMask": {
-    "corners": [{"x": <percentage>, "y": <percentage>}, ...],
-    "isVisible": true/false
-  }
+  "fieldMask": {"corners": [{"x": <pct>, "y": <pct>}], "isVisible": true|false}
 }
 
-IMPORTANT:
-- All coordinates are percentages (0-100) relative to image dimensions
-- For line segments, provide start and end points
-- For curved lines (center circle, penalty arc), provide multiple points along the curve
-- Classify teams by jersey color contrast (typically one team darker, one lighter)
-- If a referee is visible (usually in black/different color), classify as "referee"
-- Only report what you can confidently detect
-- Set confidence scores appropriately (higher for clear detections)`;
+CRITICAL ACCURACY RULES:
+- Position the bounding boxes PRECISELY around each player
+- Account for camera perspective - players farther from camera appear smaller
+- Distinguish goalkeepers (often different colored jerseys) correctly
+- Report only what you can SEE with high confidence`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
