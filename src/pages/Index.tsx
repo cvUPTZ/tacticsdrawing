@@ -35,6 +35,7 @@ import { AnnotationsList } from "@/components/analysis/AnnotationsList";
 import { ProjectsDialog } from "@/components/analysis/ProjectsDialog";
 import { HeatmapType } from "@/components/analysis/HeatmapOverlay";
 import { SmartFieldPoints, SMART_FIELD_POINTS, FieldPoint } from "@/components/analysis/SmartFieldpoints";
+import { AIDetection } from "@/components/analysis/AIDetection";
 import { toast } from "sonner";
 
 // Formation detection utility
@@ -194,6 +195,9 @@ export default function Index() {
   // Field line detection state
   const [isLineDetectionActive, setIsLineDetectionActive] = useState(false);
   const [canvasContainerSize, setCanvasContainerSize] = useState({ width: 800, height: 450 });
+  
+  // AI Detection state
+  const [isAIDetectionActive, setIsAIDetectionActive] = useState(false);
 
   const handlePitchTransformReset = useCallback(() => {
     setPitchTransform(DEFAULT_TRANSFORM);
@@ -878,6 +882,17 @@ export default function Index() {
               showPitch={showPitch}
             />
 
+            {/* AI Detection Overlay */}
+            {isAIDetectionActive && (
+              <AIDetection
+                videoElement={videoRef.current}
+                isActive={isAIDetectionActive}
+                onToggle={() => setIsAIDetectionActive(!isAIDetectionActive)}
+                containerWidth={canvasContainerSize.width}
+                containerHeight={canvasContainerSize.height}
+              />
+            )}
+
             {/* Corner calibration markers - draggable */}
             {/* Calibration point markers - draggable */}
             {isCornerCalibrating &&
@@ -1087,6 +1102,8 @@ export default function Index() {
             videoElement={videoRef.current}
             containerWidth={canvasContainerSize.width}
             containerHeight={canvasContainerSize.height}
+            isAIDetectionActive={isAIDetectionActive}
+            onToggleAIDetection={() => setIsAIDetectionActive(!isAIDetectionActive)}
           />
         </aside>
       </div>
