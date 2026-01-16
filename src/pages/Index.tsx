@@ -18,6 +18,7 @@ import { HomographyCalibrationPanel } from "@/components/analysis/HomographyCali
 import { PITCH_REFERENCE_POINTS } from "@/components/analysis/SOTAPitch";
 import { solveCameraPose, CalibrationPoint3D } from "@/utils/cameraSolver";
 import { useHomographyCalibration } from "@/hooks/useHomographyCalibration";
+import { useZoomDiagnosis } from "@/hooks/useZoomDiagnosis";
 import { PitchTransform, DEFAULT_TRANSFORM } from "@/components/analysis/PitchTransformControls";
 import {
   PitchCorners,
@@ -139,6 +140,7 @@ export default function Index() {
   const { presets: customPresets, addPreset, deletePreset: deleteCustomPreset } = useCalibrationPresets();
 
   const homography = useHomographyCalibration();
+  const zoomDiagnosis = useZoomDiagnosis();
 
   const [toolMode, setToolMode] = useState<ToolMode>("select");
   const [projectName, setProjectName] = useState("Untitled Analysis");
@@ -386,7 +388,7 @@ export default function Index() {
 
   // Track canvas container size for line detection overlay
   useEffect(() => {
-    const container = document.querySelector(".canvas-container");
+    const container = document.querySelector('.canvas-container');
     if (!container) return;
 
     const updateSize = () => {
@@ -395,9 +397,31 @@ export default function Index() {
     };
 
     updateSize();
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
   }, [videoSrc]);
+
+  // Zoom Processing Loop
+  useEffect(() => {
+    let animationFrameId: number;
+
+    const processLoop = () => {
+      if (videoRef.current && zoomDiagnosis.isMonitoring) {
+        zoomDiagnosis.processFrame(videoRef.current);
+      }
+      animationFrameId = requestAnimationFrame(processLoop);
+    };
+
+    if (zoomDiagnosis.isMonitoring) {
+      processLoop();
+    }
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [zoomDiagnosis.isMonitoring, zoomDiagnosis.processFrame]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -836,6 +860,12 @@ export default function Index() {
                 return;
               }
 
+              // 2. Handle Zoom Diagnosis Reference clicks
+              if (zoomDiagnosis.isSettingReference) {
+                zoomDiagnosis.addReferencePoint(x, y);
+                return;
+              }
+
               // 3. Handle Smart Field Point clicks
               if (isFieldMapping && activeFieldPointId) {
                 handleUpdateFieldPoint(activeFieldPointId, x, y);
@@ -860,7 +890,7 @@ export default function Index() {
               }
             }}
             style={{
-              cursor: homography.isCalibrationMode && homography.selectedFeature ? "crosshair" : "default",
+              cursor: (homography.isCalibrationMode && homography.selectedFeature) || zoomDiagnosis.isSettingReference ? 'crosshair' : 'default'
             }}
           >
             <VideoCanvas ref={videoRef} src={videoSrc} />
@@ -918,13 +948,12 @@ export default function Index() {
                   point.screenY !== undefined && (
                     <div
                       key={point.id}
-                      className={`absolute w-5 h-5 -ml-2.5 -mt-2.5 border-2 rounded-full z-20 cursor-grab active:cursor-grabbing transition-all ${
-                        draggingCorner === point.id
+                      className={`absolute w-5 h-5 -ml-2.5 -mt-2.5 border-2 rounded-full z-20 cursor-grab active:cursor-grabbing transition-all ${draggingCorner === point.id
                           ? "border-accent bg-accent/50 scale-125"
                           : activePointId === point.id
                             ? "border-primary bg-primary/50 scale-110"
                             : "border-primary bg-primary/30 hover:scale-110"
-                      }`}
+                        }`}
                       style={{ left: point.screenX, top: point.screenY }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1017,10 +1046,20 @@ export default function Index() {
               >
                 <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] text-yellow-400 font-bold whitespace-nowrap bg-black/80 px-1 py-0.5 rounded">
                   {/* Simplify label for display */}
-                  {point.feature_name
-                    .split("_")
-                    .map((s) => s[0].toUpperCase())
-                    .join("")}
+                  {point.feature_name.split('_').map(s => s[0].toUpperCase()).join('')}
+                </span>
+              </div>
+            ))}
+
+            {/* Zoom Diagnosis Reference Points overlay */}
+            {zoomDiagnosis.referencePoints.map((point, index) => (
+              <div
+                key={index}
+                className="absolute w-3 h-3 -ml-1.5 -mt-1.5 border border-white bg-blue-500 rounded-full z-20 pointer-events-none"
+                style={{ left: point.x, top: point.y }}
+              >
+                <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] text-white font-bold bg-blue-500/80 px-1 rounded">
+                  R{index + 1}
                 </span>
               </div>
             ))}
@@ -1069,6 +1108,14 @@ export default function Index() {
             onClearPoints={homography.clearCalibrationPoints}
             onComputeCalibration={homography.computeCalibration}
             onSaveCalibration={() => videoSrc && homography.saveCalibration(videoSrc)} // Use videoSrc as ID
+            // Zoom Diagnosis
+            isZoomMonitoring={zoomDiagnosis.isMonitoring}
+            isSettingZoomReference={zoomDiagnosis.isSettingReference}
+            zoomStatus={zoomDiagnosis.zoomStatus}
+            onStartSettingZoomReference={zoomDiagnosis.startSettingReference}
+            onCancelSettingZoomReference={zoomDiagnosis.cancelSettingReference}
+            onStartZoomMonitoring={zoomDiagnosis.startMonitoring}
+            onStopZoomMonitoring={zoomDiagnosis.stopMonitoring}
           />
 
           <CalibrationPanel
