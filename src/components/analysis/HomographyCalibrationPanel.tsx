@@ -53,6 +53,7 @@ interface HomographyCalibrationPanelProps {
   onCancelSettingZoomReference: () => void;
   onStartZoomMonitoring: () => void;
   onStopZoomMonitoring: () => void;
+  canStartMonitoring: boolean;
 }
 
 // Categorized pitch features for UI
@@ -113,6 +114,7 @@ export function HomographyCalibrationPanel({
   onCancelSettingZoomReference,
   onStartZoomMonitoring,
   onStopZoomMonitoring,
+  canStartMonitoring,
 }: HomographyCalibrationPanelProps) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>('Corners');
   const [showZoomMonitor, setShowZoomMonitor] = useState(false);
@@ -508,7 +510,7 @@ export function HomographyCalibrationPanel({
                       variant="default"
                       size="sm"
                       onClick={onStartZoomMonitoring}
-                      disabled={!zoomStatus}
+                      disabled={!canStartMonitoring}
                       className="h-8 text-[10px] gap-1"
                     >
                       <ScanEye className="h-3 w-3" />
