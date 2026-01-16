@@ -949,10 +949,10 @@ export default function Index() {
                     <div
                       key={point.id}
                       className={`absolute w-5 h-5 -ml-2.5 -mt-2.5 border-2 rounded-full z-20 cursor-grab active:cursor-grabbing transition-all ${draggingCorner === point.id
-                          ? "border-accent bg-accent/50 scale-125"
-                          : activePointId === point.id
-                            ? "border-primary bg-primary/50 scale-110"
-                            : "border-primary bg-primary/30 hover:scale-110"
+                        ? "border-accent bg-accent/50 scale-125"
+                        : activePointId === point.id
+                          ? "border-primary bg-primary/50 scale-110"
+                          : "border-primary bg-primary/30 hover:scale-110"
                         }`}
                       style={{ left: point.screenX, top: point.screenY }}
                       onClick={(e) => {
@@ -1116,6 +1116,7 @@ export default function Index() {
             onCancelSettingZoomReference={zoomDiagnosis.cancelSettingReference}
             onStartZoomMonitoring={zoomDiagnosis.startMonitoring}
             onStopZoomMonitoring={zoomDiagnosis.stopMonitoring}
+            canStartMonitoring={zoomDiagnosis.referencePoints.length === 2}
           />
 
           <CalibrationPanel
