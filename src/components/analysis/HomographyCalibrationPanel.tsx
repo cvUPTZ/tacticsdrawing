@@ -17,6 +17,9 @@ import {
   Save,
   ChevronDown,
   ChevronUp,
+  Activity,
+  ScanEye,
+  Ruler,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { PITCH_FEATURES, PITCH_DIMENSIONS } from '@/utils/pitchConstants';
@@ -37,6 +40,19 @@ interface HomographyCalibrationPanelProps {
   onClearPoints: () => void;
   onComputeCalibration: () => void;
   onSaveCalibration: () => void;
+  // Zoom Diagnosis Props
+  isZoomMonitoring: boolean;
+  isSettingZoomReference: boolean;
+  zoomStatus: {
+    scale: number;
+    status: 'stable' | 'zoom-detected' | 'error';
+    currentDistance: number;
+    initialDistance: number;
+  } | null;
+  onStartSettingZoomReference: () => void;
+  onCancelSettingZoomReference: () => void;
+  onStartZoomMonitoring: () => void;
+  onStopZoomMonitoring: () => void;
 }
 
 // Categorized pitch features for UI
@@ -90,8 +106,16 @@ export function HomographyCalibrationPanel({
   onClearPoints,
   onComputeCalibration,
   onSaveCalibration,
+  isZoomMonitoring,
+  isSettingZoomReference,
+  zoomStatus,
+  onStartSettingZoomReference,
+  onCancelSettingZoomReference,
+  onStartZoomMonitoring,
+  onStopZoomMonitoring,
 }: HomographyCalibrationPanelProps) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>('Corners');
+  const [showZoomMonitor, setShowZoomMonitor] = useState(false);
 
   const canCompute = calibrationPoints.length >= 4;
   const hasCalibration = validationMetrics !== null;
@@ -115,7 +139,7 @@ export function HomographyCalibrationPanel({
           <Grid3X3 className="h-3.5 w-3.5" />
           Homography Calibration
         </Label>
-        
+
         {!isOpenCVLoaded ? (
           <Badge variant="outline" className="text-[10px] gap-1">
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -165,9 +189,8 @@ export function HomographyCalibrationPanel({
           <div className="flex items-center gap-2">
             <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
               <div
-                className={`h-full transition-all ${
-                  calibrationPoints.length >= 4 ? 'bg-primary' : 'bg-primary/50'
-                }`}
+                className={`h-full transition-all ${calibrationPoints.length >= 4 ? 'bg-primary' : 'bg-primary/50'
+                  }`}
                 style={{ width: `${Math.min(100, (calibrationPoints.length / 4) * 100)}%` }}
               />
             </div>
@@ -265,9 +288,8 @@ export function HomographyCalibrationPanel({
                               variant={isActive ? 'default' : isSet ? 'secondary' : 'outline'}
                               size="sm"
                               onClick={() => onSelectFeature(isActive ? null : featureId)}
-                              className={`h-7 text-[10px] justify-start gap-1 ${
-                                isSet ? 'border-primary/50' : ''
-                              }`}
+                              className={`h-7 text-[10px] justify-start gap-1 ${isSet ? 'border-primary/50' : ''
+                                }`}
                             >
                               <MapPin className="h-2.5 w-2.5 flex-shrink-0" />
                               <span className="truncate">
@@ -323,11 +345,10 @@ export function HomographyCalibrationPanel({
 
       {/* Validation metrics */}
       {validationMetrics && (
-        <div className={`p-3 rounded-lg border ${
-          validationMetrics.is_valid
-            ? 'bg-primary/5 border-primary/20'
-            : 'bg-destructive/5 border-destructive/20'
-        }`}>
+        <div className={`p-3 rounded-lg border ${validationMetrics.is_valid
+          ? 'bg-primary/5 border-primary/20'
+          : 'bg-destructive/5 border-destructive/20'
+          }`}>
           <div className="flex items-center justify-between mb-2">
             <Label className="text-xs font-medium flex items-center gap-1.5">
               {validationMetrics.is_valid ? (
@@ -428,6 +449,125 @@ export function HomographyCalibrationPanel({
           </svg>
         </div>
       )}
+      {/* Zoom Diagnosis Monitor */}
+      <div className="pt-2 border-t border-border/50">
+        <button
+          onClick={() => setShowZoomMonitor(!showZoomMonitor)}
+          className="w-full flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors"
+        >
+          <Label className="text-xs font-medium flex items-center gap-1.5 cursor-pointer">
+            <Activity className="h-3.5 w-3.5" />
+            Zoom Monitoring
+          </Label>
+          {showZoomMonitor ? (
+            <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+        </button>
+
+        {showZoomMonitor && (
+          <div className="mt-2 space-y-3 p-3 bg-muted/30 rounded-lg border border-border/50">
+            {/* Monitoring Controls */}
+            {!isZoomMonitoring ? (
+              <div className="space-y-2">
+                <p className="text-[10px] text-muted-foreground">
+                  Track pixel distance between two points to detect zoom changes.
+                </p>
+
+                {isSettingZoomReference ? (
+                  <div className="bg-primary/10 p-2 rounded border border-primary/20 animate-pulse">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Ruler className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-bold text-primary">Select 2 Points</span>
+                    </div>
+                    <p className="text-[10px] text-primary/80 mb-2">
+                      Click two stable points on the video (e.g., across center circle).
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onCancelSettingZoomReference}
+                      className="w-full h-6 text-[10px]"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onStartSettingZoomReference}
+                      className="h-8 text-[10px] gap-1"
+                    >
+                      <Ruler className="h-3 w-3" />
+                      Set Reference
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={onStartZoomMonitoring}
+                      disabled={!zoomStatus}
+                      className="h-8 text-[10px] gap-1"
+                    >
+                      <ScanEye className="h-3 w-3" />
+                      Start Monitor
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${zoomStatus?.status === 'zoom-detected' ? 'bg-destructive' : 'bg-green-500'
+                        }`}></span>
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${zoomStatus?.status === 'zoom-detected' ? 'bg-destructive' : 'bg-green-500'
+                        }`}></span>
+                    </span>
+                    <span className="text-xs font-medium">Monitoring Zoom...</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onStopZoomMonitoring}
+                    className="h-6 w-6 p-0"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+
+                {zoomStatus && (
+                  <div className="grid grid-cols-2 gap-2 text-center bg-background rounded border p-2">
+                    <div>
+                      <div className={`text-lg font-bold ${zoomStatus.status === 'zoom-detected' ? 'text-destructive' : 'text-primary'
+                        }`}>
+                        {zoomStatus.scale.toFixed(3)}x
+                      </div>
+                      <div className="text-[9px] text-muted-foreground">Scale Factor</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-muted-foreground">
+                        {Math.round(zoomStatus.currentDistance)}px
+                      </div>
+                      <div className="text-[9px] text-muted-foreground">Ref. Distance</div>
+                    </div>
+                  </div>
+                )}
+
+                {zoomStatus?.status === 'zoom-detected' && (
+                  <div className="flex items-start gap-2 p-2 bg-destructive/10 border border-destructive/20 rounded text-[10px] text-destructive">
+                    <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                    <span>Zoom change detected! Calibration may be invalid.</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
