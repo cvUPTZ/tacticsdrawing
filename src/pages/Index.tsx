@@ -14,8 +14,10 @@ import { BottomBar } from "@/components/analysis/BottomBar";
 import { ToolPanel } from "@/components/analysis/ToolPanel";
 import { CalibrationPanel, CornerCalibrationPoint } from "@/components/analysis/CalibrationPanel";
 import { CalibrationPoint } from "@/components/analysis/PointCalibration";
+import { HomographyCalibrationPanel } from "@/components/analysis/HomographyCalibrationPanel";
 import { PITCH_REFERENCE_POINTS } from "@/components/analysis/SOTAPitch";
 import { solveCameraPose, CalibrationPoint3D } from "@/utils/cameraSolver";
+import { useHomographyCalibration } from "@/hooks/useHomographyCalibration";
 import { PitchTransform, DEFAULT_TRANSFORM } from "@/components/analysis/PitchTransformControls";
 import {
   PitchCorners,
@@ -136,6 +138,8 @@ export default function Index() {
 
   const { presets: customPresets, addPreset, deletePreset: deleteCustomPreset } = useCalibrationPresets();
 
+  const homography = useHomographyCalibration();
+
   const [toolMode, setToolMode] = useState<ToolMode>("select");
   const [projectName, setProjectName] = useState("Untitled Analysis");
   const [projectsDialogOpen, setProjectsDialogOpen] = useState(false);
@@ -195,7 +199,7 @@ export default function Index() {
   // Field line detection state
   const [isLineDetectionActive, setIsLineDetectionActive] = useState(false);
   const [canvasContainerSize, setCanvasContainerSize] = useState({ width: 800, height: 450 });
-  
+
   // AI Detection state
   const [isAIDetectionActive, setIsAIDetectionActive] = useState(false);
 
@@ -382,17 +386,17 @@ export default function Index() {
 
   // Track canvas container size for line detection overlay
   useEffect(() => {
-    const container = document.querySelector('.canvas-container');
+    const container = document.querySelector(".canvas-container");
     if (!container) return;
-    
+
     const updateSize = () => {
       const rect = container.getBoundingClientRect();
       setCanvasContainerSize({ width: rect.width, height: rect.height });
     };
-    
+
     updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
   }, [videoSrc]);
 
   // Keyboard shortcuts
@@ -823,6 +827,15 @@ export default function Index() {
               const x = e.clientX - rect.left;
               const y = e.clientY - rect.top;
 
+              // 1. Handle Homography Calibration clicks
+              if (homography.isCalibrationMode && homography.selectedFeature) {
+                // Calculate frame number if available, otherwise default to 0
+                // const frameNumber = Math.floor(videoState.currentTime * 30); // simplistic assumption
+                // For now, let's just pass the current video time or 0 if we don't strictly need frame-perfect sync yet
+                homography.addCalibrationPoint(x, y, 0); // TODO: Pass actual frame number
+                return;
+              }
+
               // 3. Handle Smart Field Point clicks
               if (isFieldMapping && activeFieldPointId) {
                 handleUpdateFieldPoint(activeFieldPointId, x, y);
@@ -845,6 +858,9 @@ export default function Index() {
 
                 setActivePointId(null);
               }
+            }}
+            style={{
+              cursor: homography.isCalibrationMode && homography.selectedFeature ? "crosshair" : "default",
             }}
           >
             <VideoCanvas ref={videoRef} src={videoSrc} />
@@ -992,6 +1008,23 @@ export default function Index() {
                 </div>
               )}
 
+            {/* Homography Calibration Points overlay */}
+            {homography.calibrationPoints.map((point) => (
+              <div
+                key={point.id}
+                className="absolute w-4 h-4 -ml-2 -mt-2 border-2 border-yellow-400 bg-yellow-400/30 rounded-full z-20 pointer-events-none"
+                style={{ left: point.video_coords.x, top: point.video_coords.y }}
+              >
+                <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] text-yellow-400 font-bold whitespace-nowrap bg-black/80 px-1 py-0.5 rounded">
+                  {/* Simplify label for display */}
+                  {point.feature_name
+                    .split("_")
+                    .map((s) => s[0].toUpperCase())
+                    .join("")}
+                </span>
+              </div>
+            ))}
+
             {/* Player counter */}
             {!isCornerCalibrating && !isDirectManipulating && toolMode === "player" && videoSrc && (
               <div className="absolute top-16 left-1/2 -translate-x-1/2 glass-panel px-3 py-1 rounded-full">
@@ -1021,6 +1054,23 @@ export default function Index() {
 
         {/* Right Sidebar - Calibration */}
         <aside className="w-56 xl:w-64 p-3 overflow-y-auto border-l border-border/50 space-y-3">
+          <HomographyCalibrationPanel
+            isCalibrationMode={homography.isCalibrationMode}
+            selectedFeature={homography.selectedFeature}
+            calibrationPoints={homography.calibrationPoints}
+            validationMetrics={homography.validationMetrics}
+            isOpenCVLoaded={homography.isOpenCVLoaded}
+            isComputing={homography.isComputing}
+            error={homography.error}
+            onStartCalibration={homography.startCalibration}
+            onStopCalibration={homography.stopCalibration}
+            onSelectFeature={homography.selectFeature}
+            onRemovePoint={homography.removeCalibrationPoint}
+            onClearPoints={homography.clearCalibrationPoints}
+            onComputeCalibration={homography.computeCalibration}
+            onSaveCalibration={() => videoSrc && homography.saveCalibration(videoSrc)} // Use videoSrc as ID
+          />
+
           <CalibrationPanel
             calibration={calibration}
             isCalibrating={isCalibrating}
