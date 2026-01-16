@@ -229,10 +229,20 @@ export function useZoomDiagnosis(): UseZoomDiagnosisReturn {
                 // Lost tracking
                 setError("Lost tracking of reference points");
                 stopMonitoring();
+
+                // Clean up local matrices before returning
+                src.delete();
+                gray.delete();
+                nextPoints.delete();
+                status.delete();
+                err.delete();
+                return;
             }
 
             // 5. Cleanup
-            prevGray.current.delete();
+            if (prevGray.current) {
+                prevGray.current.delete();
+            }
             prevGray.current = gray.clone(); // Keep current gray as prev for next
 
             src.delete();
